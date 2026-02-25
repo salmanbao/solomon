@@ -226,6 +226,7 @@ func (s *Store) CreateClaimWithOutbox(_ context.Context, claim entities.Claim, e
 		EventType:        event.EventType,
 		OccurredAt:       event.OccurredAt,
 		SourceService:    "content-marketplace-service",
+		TraceID:          event.EventID,
 		SchemaVersion:    1,
 		PartitionKeyPath: "clip_id",
 		PartitionKey:     event.PartitionKey,

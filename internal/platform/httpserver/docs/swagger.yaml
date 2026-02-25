@@ -57,11 +57,31 @@ definitions:
       votes_7d:
         type: integer
     type: object
+  solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.DownloadClipResponse:
+    properties:
+      download_url:
+        type: string
+      expires_at:
+        type: string
+      remaining_downloads:
+        type: integer
+      replayed:
+        type: boolean
+    type: object
   solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse:
     properties:
       code:
         type: string
       message:
+        type: string
+    type: object
+  solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.GetClipPreviewResponse:
+    properties:
+      clip_id:
+        type: string
+      expires_at:
+        type: string
+      preview_url:
         type: string
     type: object
   solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.GetClipResponse:
@@ -85,12 +105,203 @@ definitions:
       next_cursor:
         type: string
     type: object
+  solomon_contexts_campaign-editorial_submission-service_transport_http.AnalyticsResponse:
+    properties:
+      reported_count:
+        type: integer
+      submission_id:
+        type: string
+      view_count:
+        type: integer
+    type: object
+  solomon_contexts_campaign-editorial_submission-service_transport_http.ApproveSubmissionRequest:
+    properties:
+      reason:
+        type: string
+    type: object
+  solomon_contexts_campaign-editorial_submission-service_transport_http.BulkOperationRequest:
+    properties:
+      operation_type:
+        type: string
+      reason:
+        type: string
+      submission_ids:
+        items:
+          type: string
+        type: array
+    type: object
+  solomon_contexts_campaign-editorial_submission-service_transport_http.BulkOperationResponse:
+    properties:
+      processed:
+        type: integer
+    type: object
+  solomon_contexts_campaign-editorial_submission-service_transport_http.CreateSubmissionRequest:
+    properties:
+      campaign_id:
+        type: string
+      cpv_rate:
+        type: number
+      idempotency_key:
+        type: string
+      platform:
+        type: string
+      post_url:
+        type: string
+    type: object
+  solomon_contexts_campaign-editorial_submission-service_transport_http.CreateSubmissionResponse:
+    properties:
+      replayed:
+        type: boolean
+      submission:
+        $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.SubmissionDTO'
+    type: object
+  solomon_contexts_campaign-editorial_submission-service_transport_http.DashboardResponse:
+    properties:
+      approved:
+        type: integer
+      flagged:
+        type: integer
+      pending:
+        type: integer
+      rejected:
+        type: integer
+      total:
+        type: integer
+    type: object
+  solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+    type: object
+  solomon_contexts_campaign-editorial_submission-service_transport_http.GetSubmissionResponse:
+    properties:
+      submission:
+        $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.SubmissionDTO'
+    type: object
+  solomon_contexts_campaign-editorial_submission-service_transport_http.ListSubmissionsResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.SubmissionDTO'
+        type: array
+    type: object
+  solomon_contexts_campaign-editorial_submission-service_transport_http.RejectSubmissionRequest:
+    properties:
+      notes:
+        type: string
+      reason:
+        type: string
+    type: object
+  solomon_contexts_campaign-editorial_submission-service_transport_http.ReportSubmissionRequest:
+    properties:
+      description:
+        type: string
+      reason:
+        type: string
+    type: object
+  solomon_contexts_campaign-editorial_submission-service_transport_http.SubmissionDTO:
+    properties:
+      approval_reason:
+        type: string
+      approved_at:
+        type: string
+      approved_by_user_id:
+        type: string
+      campaign_id:
+        type: string
+      created_at:
+        type: string
+      creator_id:
+        type: string
+      locked_views:
+        type: integer
+      platform:
+        type: string
+      post_id:
+        type: string
+      post_url:
+        type: string
+      rejected_at:
+        type: string
+      rejection_notes:
+        type: string
+      rejection_reason:
+        type: string
+      reported_count:
+        type: integer
+      status:
+        type: string
+      submission_id:
+        type: string
+      updated_at:
+        type: string
+      verification_end:
+        type: string
+      verification_start:
+        type: string
+      views_count:
+        type: integer
+    type: object
 info:
   contact: {}
   description: Solomon monolith HTTP API
   title: Solomon API
   version: "1.0"
 paths:
+  /dashboard/brand:
+    get:
+      consumes:
+      - application/json
+      description: Returns submission summary counts for a campaign.
+      parameters:
+      - description: Campaign id
+        in: query
+        name: campaign_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.DashboardResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get brand submission dashboard
+      tags:
+      - submission-service
+  /dashboard/creator:
+    get:
+      consumes:
+      - application/json
+      description: Returns submission summary counts for a creator.
+      parameters:
+      - description: Creator user id
+        in: header
+        name: X-User-Id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.DashboardResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get creator submission dashboard
+      tags:
+      - submission-service
   /library/claims:
     get:
       consumes:
@@ -283,6 +494,467 @@ paths:
       summary: Claim a clip
       tags:
       - content-library-marketplace
+  /library/clips/{clip_id}/download:
+    post:
+      consumes:
+      - application/json
+      description: Returns a signed download URL for users with an active claim.
+      parameters:
+      - description: Request correlation id
+        in: header
+        name: X-Request-Id
+        required: true
+        type: string
+      - description: Idempotency key
+        in: header
+        name: Idempotency-Key
+        type: string
+      - description: Clip id
+        in: path
+        name: clip_id
+        required: true
+        type: string
+      - description: Client IP
+        in: header
+        name: X-Forwarded-For
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.DownloadClipResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+        "410":
+          description: Gone
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get signed clip download URL
+      tags:
+      - content-library-marketplace
+  /library/clips/{clip_id}/preview:
+    get:
+      consumes:
+      - application/json
+      description: Returns a preview URL with expiry metadata.
+      parameters:
+      - description: Request correlation id
+        in: header
+        name: X-Request-Id
+        required: true
+        type: string
+      - description: Clip id
+        in: path
+        name: clip_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.GetClipPreviewResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+        "410":
+          description: Gone
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get clip preview URL
+      tags:
+      - content-library-marketplace
+  /submissions:
+    get:
+      consumes:
+      - application/json
+      description: Returns submissions filtered by creator, campaign, and status.
+      parameters:
+      - description: Creator user id filter
+        in: header
+        name: X-User-Id
+        type: string
+      - description: Campaign id filter
+        in: query
+        name: campaign_id
+        type: string
+      - description: Submission status filter
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ListSubmissionsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List submissions
+      tags:
+      - submission-service
+    post:
+      consumes:
+      - application/json
+      description: Creates a new campaign submission for the authenticated creator.
+      parameters:
+      - description: Creator user id
+        in: header
+        name: X-User-Id
+        required: true
+        type: string
+      - description: Submission create payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.CreateSubmissionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.CreateSubmissionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create submission
+      tags:
+      - submission-service
+  /submissions/{submission_id}:
+    get:
+      consumes:
+      - application/json
+      description: Returns submission details by id.
+      parameters:
+      - description: Submission id
+        in: path
+        name: submission_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.GetSubmissionResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get submission
+      tags:
+      - submission-service
+  /submissions/{submission_id}/analytics:
+    get:
+      consumes:
+      - application/json
+      description: Returns basic analytics for one submission.
+      parameters:
+      - description: Submission id
+        in: path
+        name: submission_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.AnalyticsResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get submission analytics
+      tags:
+      - submission-service
+  /submissions/{submission_id}/approve:
+    post:
+      consumes:
+      - application/json
+      description: Approves a pending or flagged submission.
+      parameters:
+      - description: Approver user id
+        in: header
+        name: X-User-Id
+        required: true
+        type: string
+      - description: Submission id
+        in: path
+        name: submission_id
+        required: true
+        type: string
+      - description: Approve payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ApproveSubmissionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Approve submission
+      tags:
+      - submission-service
+  /submissions/{submission_id}/reject:
+    post:
+      consumes:
+      - application/json
+      description: Rejects a pending or flagged submission with reason and notes.
+      parameters:
+      - description: Reviewer user id
+        in: header
+        name: X-User-Id
+        required: true
+        type: string
+      - description: Submission id
+        in: path
+        name: submission_id
+        required: true
+        type: string
+      - description: Reject payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.RejectSubmissionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Reject submission
+      tags:
+      - submission-service
+  /submissions/{submission_id}/report:
+    post:
+      consumes:
+      - application/json
+      description: Files a user report against a submission and applies flag workflow.
+      parameters:
+      - description: Reporter user id
+        in: header
+        name: X-User-Id
+        required: true
+        type: string
+      - description: Submission id
+        in: path
+        name: submission_id
+        required: true
+        type: string
+      - description: Report payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ReportSubmissionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Report submission
+      tags:
+      - submission-service
+  /submissions/bulk-operations:
+    post:
+      consumes:
+      - application/json
+      description: Approves or rejects multiple submissions in a single request.
+      parameters:
+      - description: Actor user id
+        in: header
+        name: X-User-Id
+        required: true
+        type: string
+      - description: Bulk operation payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.BulkOperationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.BulkOperationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Execute bulk submission operation
+      tags:
+      - submission-service
 securityDefinitions:
   BearerAuth:
     in: header

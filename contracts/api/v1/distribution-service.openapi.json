@@ -7,7 +7,7 @@
   "paths": {
     "/api/v1/distribution/items/{id}/overlays": {
       "post": {
-        "summary": "Add overlay"
+        "summary": "Add overlay to distribution item"
       }
     },
     "/api/v1/distribution/items/{id}/preview": {
@@ -17,14 +17,33 @@
     },
     "/api/v1/distribution/items/{id}/schedule": {
       "post": {
-        "summary": "Schedule item"
+        "summary": "Schedule distribution item for publishing"
+      }
+    },
+    "/api/v1/distribution/items/{id}/reschedule": {
+      "post": {
+        "summary": "Reschedule previously scheduled item"
+      }
+    },
+    "/api/v1/distribution/items/{id}/publish": {
+      "post": {
+        "summary": "Publish item immediately"
+      }
+    },
+    "/api/v1/distribution/items/{id}/download": {
+      "post": {
+        "summary": "Generate downloadable export"
       }
     },
     "/api/v1/distribution/items/{id}/publish-multi": {
       "post": {
-        "summary": "Publish to multiple platforms"
+        "summary": "Publish item to multiple platforms"
+      }
+    },
+    "/api/v1/distribution/items/{id}/retry": {
+      "post": {
+        "summary": "Retry failed distribution item"
       }
     }
   }
 }
-

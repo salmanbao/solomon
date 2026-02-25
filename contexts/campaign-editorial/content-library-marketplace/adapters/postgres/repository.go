@@ -630,6 +630,7 @@ func buildClaimedEnvelope(event ports.ClaimedEvent) (ports.EventEnvelope, error)
 		EventType:        event.EventType,
 		OccurredAt:       event.OccurredAt.UTC(),
 		SourceService:    "content-marketplace-service",
+		TraceID:          event.EventID,
 		SchemaVersion:    1,
 		PartitionKeyPath: "clip_id",
 		PartitionKey:     event.PartitionKey,

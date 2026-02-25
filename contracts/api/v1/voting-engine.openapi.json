@@ -7,17 +7,25 @@
   "paths": {
     "/v1/votes": {
       "post": {
-        "summary": "Create vote"
+        "summary": "Create or toggle vote",
+        "description": "Creates a vote or updates an existing vote identity for user/submission/round."
       }
     },
     "/v1/votes/{vote_id}": {
       "delete": {
-        "summary": "Retract vote"
+        "summary": "Retract vote",
+        "description": "Soft-retracts an existing vote with idempotency protection."
       }
     },
     "/v1/votes/submissions/{submission_id}": {
       "get": {
-        "summary": "Get submission votes"
+        "summary": "Get submission vote aggregates"
+      }
+    },
+    "/v1/votes/leaderboard": {
+      "get": {
+        "summary": "Legacy leaderboard endpoint",
+        "description": "Backwards-compatible leaderboard endpoint. Uses campaign leaderboard when campaign_id query parameter is provided, otherwise trending leaderboard."
       }
     },
     "/v1/leaderboards/campaign/{campaign_id}": {
@@ -25,11 +33,35 @@
         "summary": "Campaign leaderboard"
       }
     },
+    "/v1/leaderboards/round/{round_id}": {
+      "get": {
+        "summary": "Round leaderboard"
+      }
+    },
     "/v1/leaderboards/trending": {
       "get": {
         "summary": "Trending leaderboard"
       }
+    },
+    "/v1/leaderboards/creator/{user_id}": {
+      "get": {
+        "summary": "Creator leaderboard"
+      }
+    },
+    "/v1/rounds/{round_id}/results": {
+      "get": {
+        "summary": "Round results"
+      }
+    },
+    "/v1/analytics/votes": {
+      "get": {
+        "summary": "Voting analytics"
+      }
+    },
+    "/v1/quarantine/{quarantine_id}/action": {
+      "post": {
+        "summary": "Apply quarantine moderation action"
+      }
     }
   }
 }
-

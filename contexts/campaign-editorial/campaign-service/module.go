@@ -22,6 +22,7 @@ type Dependencies struct {
 	Media          ports.MediaRepository
 	History        ports.HistoryRepository
 	Idempotency    ports.IdempotencyStore
+	Outbox         ports.OutboxWriter
 	Clock          ports.Clock
 	IDGenerator    ports.IDGenerator
 	IdempotencyTTL time.Duration
@@ -32,6 +33,7 @@ func NewModule(deps Dependencies) Module {
 	createCampaign := commands.CreateCampaignUseCase{
 		Campaigns:      deps.Campaigns,
 		Idempotency:    deps.Idempotency,
+		Outbox:         deps.Outbox,
 		Clock:          deps.Clock,
 		IDGenerator:    deps.IDGenerator,
 		IdempotencyTTL: deps.IdempotencyTTL,
@@ -44,7 +46,9 @@ func NewModule(deps Dependencies) Module {
 	}
 	changeStatus := commands.ChangeStatusUseCase{
 		Campaigns: deps.Campaigns,
+		Media:     deps.Media,
 		History:   deps.History,
+		Outbox:    deps.Outbox,
 		Clock:     deps.Clock,
 		IDGen:     deps.IDGenerator,
 		Logger:    deps.Logger,
@@ -52,6 +56,7 @@ func NewModule(deps Dependencies) Module {
 	increaseBudget := commands.IncreaseBudgetUseCase{
 		Campaigns: deps.Campaigns,
 		History:   deps.History,
+		Outbox:    deps.Outbox,
 		Clock:     deps.Clock,
 		IDGen:     deps.IDGenerator,
 		Logger:    deps.Logger,
@@ -116,6 +121,7 @@ func NewInMemoryModule(seed []entities.Campaign, logger *slog.Logger) Module {
 		Media:          store,
 		History:        store,
 		Idempotency:    store,
+		Outbox:         store,
 		Clock:          store,
 		IDGenerator:    store,
 		IdempotencyTTL: 7 * 24 * time.Hour,

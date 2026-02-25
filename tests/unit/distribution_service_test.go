@@ -54,3 +54,47 @@ func TestDistributionPublishMultiFlow(t *testing.T) {
 		t.Fatalf("publish multi failed: %v", err)
 	}
 }
+
+func TestDistributionRescheduleRequiresScheduledState(t *testing.T) {
+	module := distributionservice.NewInMemoryModule(nil, nil)
+
+	item, err := module.Handler.Commands.Claim(context.Background(), commands.ClaimItemCommand{
+		InfluencerID: "influencer-3",
+		ClipID:       "clip-3",
+		CampaignID:   "campaign-3",
+	})
+	if err != nil {
+		t.Fatalf("claim item failed: %v", err)
+	}
+
+	err = module.Handler.RescheduleHandler(context.Background(), "influencer-3", item.ID, httptransport.ScheduleRequest{
+		Platform:     "tiktok",
+		ScheduledFor: time.Now().UTC().Add(2 * time.Hour).Format(time.RFC3339),
+		Timezone:     "UTC",
+	})
+	if !errors.Is(err, domainerrors.ErrInvalidStateTransition) {
+		t.Fatalf("expected invalid state transition, got %v", err)
+	}
+}
+
+func TestDistributionScheduleParsesTimezoneLocalTime(t *testing.T) {
+	module := distributionservice.NewInMemoryModule(nil, nil)
+
+	item, err := module.Handler.Commands.Claim(context.Background(), commands.ClaimItemCommand{
+		InfluencerID: "influencer-4",
+		ClipID:       "clip-4",
+		CampaignID:   "campaign-4",
+	})
+	if err != nil {
+		t.Fatalf("claim item failed: %v", err)
+	}
+
+	err = module.Handler.ScheduleHandler(context.Background(), "influencer-4", item.ID, httptransport.ScheduleRequest{
+		Platform:     "tiktok",
+		ScheduledFor: time.Now().UTC().Add(2 * time.Hour).Format("2006-01-02T15:04:05"),
+		Timezone:     "America/New_York",
+	})
+	if err != nil {
+		t.Fatalf("schedule should parse timezone local timestamp: %v", err)
+	}
+}

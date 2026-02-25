@@ -15,6 +15,90 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/dashboard/brand": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns submission summary counts for a campaign.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "submission-service"
+                ],
+                "summary": "Get brand submission dashboard",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Campaign id",
+                        "name": "campaign_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.DashboardResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/creator": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns submission summary counts for a creator.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "submission-service"
+                ],
+                "summary": "Get creator submission dashboard",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Creator user id",
+                        "name": "X-User-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.DashboardResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/library/claims": {
             "get": {
                 "security": [
@@ -310,6 +394,720 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/library/clips/{clip_id}/download": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a signed download URL for users with an active claim.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-library-marketplace"
+                ],
+                "summary": "Get signed clip download URL",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request correlation id",
+                        "name": "X-Request-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Idempotency key",
+                        "name": "Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Clip id",
+                        "name": "clip_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Client IP",
+                        "name": "X-Forwarded-For",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.DownloadClipResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    },
+                    "410": {
+                        "description": "Gone",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/library/clips/{clip_id}/preview": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a preview URL with expiry metadata.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-library-marketplace"
+                ],
+                "summary": "Get clip preview URL",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request correlation id",
+                        "name": "X-Request-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Clip id",
+                        "name": "clip_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.GetClipPreviewResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    },
+                    "410": {
+                        "description": "Gone",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/submissions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns submissions filtered by creator, campaign, and status.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "submission-service"
+                ],
+                "summary": "List submissions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Creator user id filter",
+                        "name": "X-User-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Campaign id filter",
+                        "name": "campaign_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Submission status filter",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ListSubmissionsResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new campaign submission for the authenticated creator.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "submission-service"
+                ],
+                "summary": "Create submission",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Creator user id",
+                        "name": "X-User-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Submission create payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.CreateSubmissionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.CreateSubmissionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/submissions/bulk-operations": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Approves or rejects multiple submissions in a single request.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "submission-service"
+                ],
+                "summary": "Execute bulk submission operation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Actor user id",
+                        "name": "X-User-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Bulk operation payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.BulkOperationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.BulkOperationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/submissions/{submission_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns submission details by id.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "submission-service"
+                ],
+                "summary": "Get submission",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Submission id",
+                        "name": "submission_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.GetSubmissionResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/submissions/{submission_id}/analytics": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns basic analytics for one submission.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "submission-service"
+                ],
+                "summary": "Get submission analytics",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Submission id",
+                        "name": "submission_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.AnalyticsResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/submissions/{submission_id}/approve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Approves a pending or flagged submission.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "submission-service"
+                ],
+                "summary": "Approve submission",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Approver user id",
+                        "name": "X-User-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Submission id",
+                        "name": "submission_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Approve payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ApproveSubmissionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/submissions/{submission_id}/reject": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Rejects a pending or flagged submission with reason and notes.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "submission-service"
+                ],
+                "summary": "Reject submission",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Reviewer user id",
+                        "name": "X-User-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Submission id",
+                        "name": "submission_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Reject payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.RejectSubmissionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/submissions/{submission_id}/report": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Files a user report against a submission and applies flag workflow.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "submission-service"
+                ],
+                "summary": "Report submission",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Reporter user id",
+                        "name": "X-User-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Submission id",
+                        "name": "submission_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Report payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ReportSubmissionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -401,6 +1199,23 @@ const docTemplate = `{
                 }
             }
         },
+        "solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.DownloadClipResponse": {
+            "type": "object",
+            "properties": {
+                "download_url": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "remaining_downloads": {
+                    "type": "integer"
+                },
+                "replayed": {
+                    "type": "boolean"
+                }
+            }
+        },
         "solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse": {
             "type": "object",
             "properties": {
@@ -408,6 +1223,20 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.GetClipPreviewResponse": {
+            "type": "object",
+            "properties": {
+                "clip_id": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "preview_url": {
                     "type": "string"
                 }
             }
@@ -442,6 +1271,221 @@ const docTemplate = `{
                 },
                 "next_cursor": {
                     "type": "string"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_submission-service_transport_http.AnalyticsResponse": {
+            "type": "object",
+            "properties": {
+                "reported_count": {
+                    "type": "integer"
+                },
+                "submission_id": {
+                    "type": "string"
+                },
+                "view_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_submission-service_transport_http.ApproveSubmissionRequest": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_submission-service_transport_http.BulkOperationRequest": {
+            "type": "object",
+            "properties": {
+                "operation_type": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "submission_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_submission-service_transport_http.BulkOperationResponse": {
+            "type": "object",
+            "properties": {
+                "processed": {
+                    "type": "integer"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_submission-service_transport_http.CreateSubmissionRequest": {
+            "type": "object",
+            "properties": {
+                "campaign_id": {
+                    "type": "string"
+                },
+                "cpv_rate": {
+                    "type": "number"
+                },
+                "idempotency_key": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "post_url": {
+                    "type": "string"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_submission-service_transport_http.CreateSubmissionResponse": {
+            "type": "object",
+            "properties": {
+                "replayed": {
+                    "type": "boolean"
+                },
+                "submission": {
+                    "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.SubmissionDTO"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_submission-service_transport_http.DashboardResponse": {
+            "type": "object",
+            "properties": {
+                "approved": {
+                    "type": "integer"
+                },
+                "flagged": {
+                    "type": "integer"
+                },
+                "pending": {
+                    "type": "integer"
+                },
+                "rejected": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_submission-service_transport_http.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_submission-service_transport_http.GetSubmissionResponse": {
+            "type": "object",
+            "properties": {
+                "submission": {
+                    "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.SubmissionDTO"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_submission-service_transport_http.ListSubmissionsResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/solomon_contexts_campaign-editorial_submission-service_transport_http.SubmissionDTO"
+                    }
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_submission-service_transport_http.RejectSubmissionRequest": {
+            "type": "object",
+            "properties": {
+                "notes": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_submission-service_transport_http.ReportSubmissionRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_submission-service_transport_http.SubmissionDTO": {
+            "type": "object",
+            "properties": {
+                "approval_reason": {
+                    "type": "string"
+                },
+                "approved_at": {
+                    "type": "string"
+                },
+                "approved_by_user_id": {
+                    "type": "string"
+                },
+                "campaign_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "creator_id": {
+                    "type": "string"
+                },
+                "locked_views": {
+                    "type": "integer"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "post_id": {
+                    "type": "string"
+                },
+                "post_url": {
+                    "type": "string"
+                },
+                "rejected_at": {
+                    "type": "string"
+                },
+                "rejection_notes": {
+                    "type": "string"
+                },
+                "rejection_reason": {
+                    "type": "string"
+                },
+                "reported_count": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "submission_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "verification_end": {
+                    "type": "string"
+                },
+                "verification_start": {
+                    "type": "string"
+                },
+                "views_count": {
+                    "type": "integer"
                 }
             }
         }

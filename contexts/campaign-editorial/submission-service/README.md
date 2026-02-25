@@ -31,6 +31,7 @@ Core invariants:
 ## Owned Data and Read Dependencies
 Migration:
 - `migrations/20260225_0004_m26_submission_service.sql`
+- `migrations/20260225_0009_m26_submission_service_reliability.sql`
 
 Canonical references:
 - `viralForge/specs/service-data-ownership-map.yaml` for M26 owned tables
@@ -38,9 +39,14 @@ Canonical references:
 
 ## Event and Outbox Behavior
 Canonical emitted events for M26 remain:
-- `submission.created`, `submission.approved`, `submission.rejected`, `submission.flagged`, `submission.view_locked`, `submission.cancelled`
+- `submission.created`, `submission.approved`, `submission.rejected`, `submission.flagged`,
+  `submission.auto_approved`, `submission.verified`, `submission.view_locked`, `submission.cancelled`
 
-This delivery focuses on module behavior and contracts; transactional outbox relay wiring is a next reliability slice.
+Implemented reliability paths:
+- transactional outbox persistence (`submission_outbox`) + relay worker (`application/workers/outbox_relay.go`)
+- campaign launch event consumption (`application/workers/campaign_launched_consumer.go`)
+- auto-approve worker (`application/workers/auto_approve_job.go`)
+- view lock worker (`application/workers/view_lock_job.go`)
 
 ## Failure Handling and Idempotency
 - Domain errors are mapped to transport errors in `internal/platform/httpserver/server.go`
@@ -52,6 +58,9 @@ Unit tests:
 - `tests/unit/submission_service_test.go`
   - create + approve flow
   - duplicate guard behavior
+- `tests/unit/submission_service_workers_test.go`
+  - campaign/platform create validation
+  - auto-approve and view-lock lifecycle events
 
 ## Decision Rationale
 ### Decision
@@ -76,4 +85,3 @@ M26 is dependency-critical for M08 voting and reward lifecycle while M04/M06 int
 - Code: `contexts/campaign-editorial/submission-service/*`
 - Routing: `internal/platform/httpserver/server.go`
 - Migration: `migrations/20260225_0004_m26_submission_service.sql`
-

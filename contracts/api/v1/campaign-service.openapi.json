@@ -41,6 +41,31 @@
         "summary": "Complete campaign"
       }
     },
+    "/v1/campaigns/{campaign_id}/media/upload-url": {
+      "post": {
+        "summary": "Generate media upload URL"
+      }
+    },
+    "/v1/campaigns/{campaign_id}/media/{media_id}/confirm": {
+      "post": {
+        "summary": "Confirm media upload"
+      }
+    },
+    "/v1/campaigns/{campaign_id}/media": {
+      "get": {
+        "summary": "List campaign media"
+      }
+    },
+    "/v1/campaigns/{campaign_id}/analytics": {
+      "get": {
+        "summary": "Get campaign analytics"
+      }
+    },
+    "/v1/campaigns/{campaign_id}/analytics/export": {
+      "get": {
+        "summary": "Export campaign analytics"
+      }
+    },
     "/v1/campaigns/{campaign_id}/budget/increase": {
       "post": {
         "summary": "Increase budget"

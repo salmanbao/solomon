@@ -22,7 +22,18 @@ type QueryUseCase struct {
 }
 
 func (uc QueryUseCase) GetSubmission(ctx context.Context, submissionID string) (entities.Submission, error) {
-	return uc.Repository.GetSubmission(ctx, strings.TrimSpace(submissionID))
+	item, err := uc.Repository.GetSubmission(ctx, strings.TrimSpace(submissionID))
+	if err != nil {
+		application.ResolveLogger(uc.Logger).Error("submission query get failed",
+			"event", "submission_query_get_failed",
+			"module", "campaign-editorial/submission-service",
+			"layer", "application",
+			"submission_id", submissionID,
+			"error", err.Error(),
+		)
+		return entities.Submission{}, err
+	}
+	return item, nil
 }
 
 func (uc QueryUseCase) ListSubmissions(ctx context.Context, query ListSubmissionsQuery) ([]entities.Submission, error) {
@@ -35,6 +46,15 @@ func (uc QueryUseCase) ListSubmissions(ctx context.Context, query ListSubmission
 	}
 	items, err := uc.Repository.ListSubmissions(ctx, filter)
 	if err != nil {
+		application.ResolveLogger(uc.Logger).Error("submission query list failed",
+			"event", "submission_query_list_failed",
+			"module", "campaign-editorial/submission-service",
+			"layer", "application",
+			"creator_id", filter.CreatorID,
+			"campaign_id", filter.CampaignID,
+			"status", string(filter.Status),
+			"error", err.Error(),
+		)
 		return nil, err
 	}
 	return items, nil
@@ -53,6 +73,13 @@ func (uc QueryUseCase) CreatorDashboard(ctx context.Context, creatorID string) (
 		CreatorID: strings.TrimSpace(creatorID),
 	})
 	if err != nil {
+		application.ResolveLogger(uc.Logger).Error("creator dashboard query failed",
+			"event", "submission_creator_dashboard_query_failed",
+			"module", "campaign-editorial/submission-service",
+			"layer", "application",
+			"creator_id", creatorID,
+			"error", err.Error(),
+		)
 		return DashboardSummary{}, err
 	}
 	return summarize(items), nil

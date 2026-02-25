@@ -2,13 +2,16 @@ package httpadapter
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	application "solomon/contexts/campaign-editorial/campaign-service/application"
 	"solomon/contexts/campaign-editorial/campaign-service/application/commands"
 	"solomon/contexts/campaign-editorial/campaign-service/application/queries"
 	"solomon/contexts/campaign-editorial/campaign-service/domain/entities"
+	domainerrors "solomon/contexts/campaign-editorial/campaign-service/domain/errors"
 	httptransport "solomon/contexts/campaign-editorial/campaign-service/transport/http"
 )
 
@@ -33,17 +36,30 @@ func (h Handler) CreateCampaignHandler(
 	idempotencyKey string,
 	req httptransport.CreateCampaignRequest,
 ) (httptransport.CreateCampaignResponse, error) {
+	deadline, err := parseDeadline(req.Deadline)
+	if err != nil {
+		return httptransport.CreateCampaignResponse{}, domainerrors.ErrInvalidCampaignInput
+	}
 	result, err := h.CreateCampaign.Execute(ctx, commands.CreateCampaignCommand{
-		BrandID:          userID,
-		IdempotencyKey:   idempotencyKey,
-		Title:            req.Title,
-		Description:      req.Description,
-		Instructions:     req.Instructions,
-		Niche:            req.Niche,
-		AllowedPlatforms: append([]string(nil), req.AllowedPlatforms...),
-		RequiredHashtags: append([]string(nil), req.RequiredHashtags...),
-		BudgetTotal:      req.BudgetTotal,
-		RatePer1KViews:   req.RatePer1KViews,
+		BrandID:           userID,
+		IdempotencyKey:    idempotencyKey,
+		Title:             req.Title,
+		Description:       req.Description,
+		Instructions:      req.Instructions,
+		Niche:             req.Niche,
+		AllowedPlatforms:  append([]string(nil), req.AllowedPlatforms...),
+		RequiredHashtags:  append([]string(nil), req.RequiredHashtags...),
+		RequiredTags:      append([]string(nil), req.RequiredTags...),
+		OptionalHashtags:  append([]string(nil), req.OptionalHashtags...),
+		UsageGuidelines:   req.UsageGuidelines,
+		DosAndDonts:       req.DosAndDonts,
+		CampaignType:      req.CampaignType,
+		DeadlineAt:        deadline,
+		TargetSubmissions: req.TargetSubmissions,
+		BannerImageURL:    req.BannerImageURL,
+		ExternalURL:       req.ExternalURL,
+		BudgetTotal:       req.BudgetTotal,
+		RatePer1KViews:    req.RatePer1KViews,
 	})
 	if err != nil {
 		return httptransport.CreateCampaignResponse{}, err
@@ -83,15 +99,28 @@ func (h Handler) UpdateCampaignHandler(
 	campaignID string,
 	req httptransport.UpdateCampaignRequest,
 ) error {
+	deadline, err := parseOptionalDeadline(req.Deadline)
+	if err != nil {
+		return domainerrors.ErrInvalidCampaignInput
+	}
 	return h.UpdateCampaign.Execute(ctx, commands.UpdateCampaignCommand{
-		CampaignID:       campaignID,
-		ActorID:          userID,
-		Title:            req.Title,
-		Description:      req.Description,
-		Instructions:     req.Instructions,
-		Niche:            req.Niche,
-		AllowedPlatforms: append([]string(nil), req.AllowedPlatforms...),
-		RequiredHashtags: append([]string(nil), req.RequiredHashtags...),
+		CampaignID:        campaignID,
+		ActorID:           userID,
+		Title:             req.Title,
+		Description:       req.Description,
+		Instructions:      req.Instructions,
+		Niche:             req.Niche,
+		AllowedPlatforms:  req.AllowedPlatforms,
+		RequiredHashtags:  req.RequiredHashtags,
+		RequiredTags:      req.RequiredTags,
+		OptionalHashtags:  req.OptionalHashtags,
+		UsageGuidelines:   req.UsageGuidelines,
+		DosAndDonts:       req.DosAndDonts,
+		CampaignType:      req.CampaignType,
+		DeadlineAt:        deadline,
+		TargetSubmissions: req.TargetSubmissions,
+		BannerImageURL:    req.BannerImageURL,
+		ExternalURL:       req.ExternalURL,
 	})
 }
 
@@ -155,6 +184,7 @@ func (h Handler) GenerateUploadURLHandler(
 		CampaignID:  campaignID,
 		ActorID:     userID,
 		FileName:    req.FileName,
+		FileSize:    req.FileSize,
 		ContentType: req.ContentType,
 	})
 	if err != nil {
@@ -234,21 +264,72 @@ func (h Handler) ExportAnalyticsHandler(ctx context.Context, campaignID string) 
 }
 
 func mapCampaign(item entities.Campaign) httptransport.CampaignDTO {
-	return httptransport.CampaignDTO{
-		CampaignID:       item.CampaignID,
-		BrandID:          item.BrandID,
-		Title:            item.Title,
-		Description:      item.Description,
-		Instructions:     item.Instructions,
-		Niche:            item.Niche,
-		AllowedPlatforms: append([]string(nil), item.AllowedPlatforms...),
-		RequiredHashtags: append([]string(nil), item.RequiredHashtags...),
-		BudgetTotal:      item.BudgetTotal,
-		BudgetSpent:      item.BudgetSpent,
-		BudgetRemaining:  item.BudgetRemaining,
-		RatePer1KViews:   item.RatePer1KViews,
-		Status:           string(item.Status),
-		CreatedAt:        item.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:        item.UpdatedAt.Format(time.RFC3339),
+	result := httptransport.CampaignDTO{
+		CampaignID:              item.CampaignID,
+		BrandID:                 item.BrandID,
+		Title:                   item.Title,
+		Description:             item.Description,
+		Instructions:            item.Instructions,
+		Niche:                   item.Niche,
+		CampaignType:            string(item.CampaignType),
+		AllowedPlatforms:        append([]string(nil), item.AllowedPlatforms...),
+		RequiredHashtags:        append([]string(nil), item.RequiredHashtags...),
+		RequiredTags:            append([]string(nil), item.RequiredTags...),
+		OptionalHashtags:        append([]string(nil), item.OptionalHashtags...),
+		UsageGuidelines:         item.UsageGuidelines,
+		DosAndDonts:             item.DosAndDonts,
+		TargetSubmissions:       item.TargetSubmissions,
+		BannerImageURL:          item.BannerImageURL,
+		ExternalURL:             item.ExternalURL,
+		BudgetTotal:             item.BudgetTotal,
+		BudgetSpent:             item.BudgetSpent,
+		BudgetReserved:          item.BudgetReserved,
+		BudgetRemaining:         item.BudgetRemaining,
+		RatePer1KViews:          item.RatePer1KViews,
+		SubmissionCount:         item.SubmissionCount,
+		ApprovedSubmissionCount: item.ApprovedSubmissionCount,
+		TotalViews:              item.TotalViews,
+		Status:                  string(item.Status),
+		CreatedAt:               item.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:               item.UpdatedAt.Format(time.RFC3339),
 	}
+	if item.DeadlineAt != nil {
+		result.Deadline = item.DeadlineAt.UTC().Format(time.RFC3339)
+	}
+	if item.LaunchedAt != nil {
+		result.LaunchedAt = item.LaunchedAt.UTC().Format(time.RFC3339)
+	}
+	if item.CompletedAt != nil {
+		result.CompletedAt = item.CompletedAt.UTC().Format(time.RFC3339)
+	}
+	return result
+}
+
+func parseDeadline(raw string) (*time.Time, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return nil, fmt.Errorf("parse deadline: %w", err)
+	}
+	utc := parsed.UTC()
+	return &utc, nil
+}
+
+func parseOptionalDeadline(raw *string) (*time.Time, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	value := strings.TrimSpace(*raw)
+	if value == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return nil, fmt.Errorf("parse deadline: %w", err)
+	}
+	utc := parsed.UTC()
+	return &utc, nil
 }

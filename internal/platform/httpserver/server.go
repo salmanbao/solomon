@@ -37,6 +37,7 @@ type Server struct {
 	mux           *http.ServeMux
 	logger        *slog.Logger
 	addr          string
+	httpServer    *http.Server
 	marketplace   contentlibrarymarketplace.Module
 	authorization authorization.Module
 	campaign      campaignservice.Module
@@ -73,6 +74,10 @@ func New(
 		voting:        votingModule,
 	}
 	s.registerRoutes()
+	s.httpServer = &http.Server{
+		Addr:    s.addr,
+		Handler: s.mux,
+	}
 	return s
 }
 
@@ -83,7 +88,23 @@ func (s *Server) Start() error {
 		"layer", "platform",
 		"addr", s.addr,
 	)
-	return http.ListenAndServe(s.addr, s.mux)
+	if s.httpServer == nil {
+		s.httpServer = &http.Server{
+			Addr:    s.addr,
+			Handler: s.mux,
+		}
+	}
+	if err := s.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	if s.httpServer == nil {
+		return nil
+	}
+	return s.httpServer.Shutdown(ctx)
 }
 
 func (s *Server) registerRoutes() {
@@ -136,12 +157,23 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /submissions/{submission_id}/analytics", s.handleSubmissionAnalytics)
 	s.mux.HandleFunc("GET /dashboard/creator", s.handleSubmissionCreatorDashboard)
 	s.mux.HandleFunc("GET /dashboard/brand", s.handleSubmissionBrandDashboard)
+	s.mux.HandleFunc("POST /v1/submissions", s.handleSubmissionCreate)
+	s.mux.HandleFunc("GET /v1/submissions/{submission_id}", s.handleSubmissionGet)
+	s.mux.HandleFunc("GET /v1/submissions", s.handleSubmissionList)
+	s.mux.HandleFunc("POST /v1/submissions/{submission_id}/approve", s.handleSubmissionApprove)
+	s.mux.HandleFunc("POST /v1/submissions/{submission_id}/reject", s.handleSubmissionReject)
+	s.mux.HandleFunc("POST /v1/submissions/{submission_id}/report", s.handleSubmissionReport)
+	s.mux.HandleFunc("POST /v1/submissions/bulk-operations", s.handleSubmissionBulkOperation)
+	s.mux.HandleFunc("GET /v1/submissions/{submission_id}/analytics", s.handleSubmissionAnalytics)
+	s.mux.HandleFunc("GET /v1/dashboard/creator", s.handleSubmissionCreatorDashboard)
+	s.mux.HandleFunc("GET /v1/dashboard/brand", s.handleSubmissionBrandDashboard)
 
 	// M31
 	s.mux.HandleFunc("POST /api/v1/distribution/items/{id}/overlays", s.handleDistributionAddOverlay)
 	s.mux.HandleFunc("GET /api/v1/distribution/items/{id}/preview", s.handleDistributionPreview)
 	s.mux.HandleFunc("POST /api/v1/distribution/items/{id}/schedule", s.handleDistributionSchedule)
 	s.mux.HandleFunc("POST /api/v1/distribution/items/{id}/reschedule", s.handleDistributionReschedule)
+	s.mux.HandleFunc("POST /api/v1/distribution/items/{id}/publish", s.handleDistributionPublish)
 	s.mux.HandleFunc("POST /api/v1/distribution/items/{id}/download", s.handleDistributionDownload)
 	s.mux.HandleFunc("POST /api/v1/distribution/items/{id}/publish-multi", s.handleDistributionPublishMulti)
 	s.mux.HandleFunc("POST /api/v1/distribution/items/{id}/retry", s.handleDistributionRetry)
@@ -150,6 +182,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /v1/votes", s.handleVotingCreate)
 	s.mux.HandleFunc("DELETE /v1/votes/{vote_id}", s.handleVotingRetract)
 	s.mux.HandleFunc("GET /v1/votes/submissions/{submission_id}", s.handleVotingSubmissionVotes)
+	s.mux.HandleFunc("GET /v1/votes/leaderboard", s.handleVotingLegacyLeaderboard)
 	s.mux.HandleFunc("GET /v1/leaderboards/campaign/{campaign_id}", s.handleVotingCampaignLeaderboard)
 	s.mux.HandleFunc("GET /v1/leaderboards/round/{round_id}", s.handleVotingRoundLeaderboard)
 	s.mux.HandleFunc("GET /v1/leaderboards/trending", s.handleVotingTrendingLeaderboard)
@@ -169,6 +202,13 @@ func (s *Server) decodeJSON(w http.ResponseWriter, r *http.Request, dst any, onE
 
 func getUserID(r *http.Request) string {
 	return strings.TrimSpace(r.Header.Get("X-User-Id"))
+}
+
+func getRequestID(r *http.Request) string {
+	if requestID := strings.TrimSpace(r.Header.Get("X-Request-Id")); requestID != "" {
+		return requestID
+	}
+	return strings.TrimSpace(r.Header.Get("Idempotency-Key"))
 }
 
 func resolveClientIP(r *http.Request) string {
@@ -208,6 +248,46 @@ func writeCampaignError(w http.ResponseWriter, status int, code string, message 
 
 func writeSubmissionError(w http.ResponseWriter, status int, code string, message string) {
 	writeJSON(w, status, submissionhttp.ErrorResponse{Code: code, Message: message})
+}
+
+func requireSubmissionAuthorization(w http.ResponseWriter, r *http.Request) bool {
+	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		writeSubmissionError(w, http.StatusUnauthorized, "unauthorized", "Authorization bearer token is required")
+		return false
+	}
+	if strings.TrimSpace(parts[1]) == "" {
+		writeSubmissionError(w, http.StatusUnauthorized, "unauthorized", "Authorization bearer token is required")
+		return false
+	}
+	return true
+}
+
+func requireSubmissionUser(w http.ResponseWriter, r *http.Request) (string, bool) {
+	userID := getUserID(r)
+	if userID == "" {
+		writeSubmissionError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
+		return "", false
+	}
+	return userID, true
+}
+
+func requireSubmissionRequestID(w http.ResponseWriter, r *http.Request) bool {
+	if strings.TrimSpace(r.Header.Get("X-Request-Id")) == "" {
+		writeSubmissionError(w, http.StatusBadRequest, "missing_request_id", "X-Request-Id header is required")
+		return false
+	}
+	return true
+}
+
+func requireSubmissionIdempotencyKey(w http.ResponseWriter, r *http.Request) (string, bool) {
+	idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if idempotencyKey == "" {
+		writeSubmissionError(w, http.StatusBadRequest, "idempotency_key_required", "Idempotency-Key header is required")
+		return "", false
+	}
+	return idempotencyKey, true
 }
 
 func writeDistributionError(w http.ResponseWriter, status int, code string, message string) {
@@ -274,16 +354,24 @@ func writeCampaignDomainError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, campaignerrors.ErrCampaignNotFound):
 		writeCampaignError(w, http.StatusNotFound, "campaign_not_found", err.Error())
+	case errors.Is(err, campaignerrors.ErrMediaFileTooLarge):
+		writeCampaignError(w, http.StatusRequestEntityTooLarge, "file_too_large", err.Error())
 	case errors.Is(err, campaignerrors.ErrInvalidCampaignInput),
-		errors.Is(err, campaignerrors.ErrIdempotencyKeyRequired):
+		errors.Is(err, campaignerrors.ErrIdempotencyKeyRequired),
+		errors.Is(err, campaignerrors.ErrUnsupportedMediaType),
+		errors.Is(err, campaignerrors.ErrDeadlineTooSoon),
+		errors.Is(err, campaignerrors.ErrMissingReadyMedia):
 		writeCampaignError(w, http.StatusBadRequest, "invalid_request", err.Error())
 	case errors.Is(err, campaignerrors.ErrCampaignNotEditable),
+		errors.Is(err, campaignerrors.ErrCampaignEditRestricted),
 		errors.Is(err, campaignerrors.ErrInvalidStateTransition),
 		errors.Is(err, campaignerrors.ErrInvalidBudgetIncrease),
 		errors.Is(err, campaignerrors.ErrMediaAlreadyConfirmed):
 		writeCampaignError(w, http.StatusConflict, "conflict", err.Error())
 	case errors.Is(err, campaignerrors.ErrMediaNotFound):
 		writeCampaignError(w, http.StatusNotFound, "media_not_found", err.Error())
+	case errors.Is(err, campaignerrors.ErrMediaLimitReached):
+		writeCampaignError(w, http.StatusConflict, "media_limit_reached", err.Error())
 	case errors.Is(err, campaignerrors.ErrIdempotencyKeyConflict):
 		writeCampaignError(w, http.StatusConflict, "idempotency_conflict", err.Error())
 	default:
@@ -297,8 +385,24 @@ func writeSubmissionDomainError(w http.ResponseWriter, err error) {
 		writeSubmissionError(w, http.StatusNotFound, "submission_not_found", err.Error())
 	case errors.Is(err, submissionerrors.ErrInvalidSubmissionInput):
 		writeSubmissionError(w, http.StatusBadRequest, "invalid_request", err.Error())
+	case errors.Is(err, submissionerrors.ErrInvalidSubmissionURL):
+		writeSubmissionError(w, http.StatusBadRequest, "invalid_submission_url", err.Error())
+	case errors.Is(err, submissionerrors.ErrUnsupportedPlatform):
+		writeSubmissionError(w, http.StatusBadRequest, "unsupported_platform", err.Error())
+	case errors.Is(err, submissionerrors.ErrPlatformNotAllowed):
+		writeSubmissionError(w, http.StatusBadRequest, "platform_not_allowed", err.Error())
+	case errors.Is(err, submissionerrors.ErrCampaignNotFound):
+		writeSubmissionError(w, http.StatusNotFound, "campaign_not_found", err.Error())
+	case errors.Is(err, submissionerrors.ErrCampaignNotActive):
+		writeSubmissionError(w, http.StatusConflict, "campaign_not_active", err.Error())
 	case errors.Is(err, submissionerrors.ErrDuplicateSubmission):
 		writeSubmissionError(w, http.StatusConflict, "duplicate_submission", err.Error())
+	case errors.Is(err, submissionerrors.ErrAlreadyReported):
+		writeSubmissionError(w, http.StatusConflict, "already_reported", err.Error())
+	case errors.Is(err, submissionerrors.ErrIdempotencyKeyRequired):
+		writeSubmissionError(w, http.StatusBadRequest, "idempotency_key_required", err.Error())
+	case errors.Is(err, submissionerrors.ErrIdempotencyKeyConflict):
+		writeSubmissionError(w, http.StatusConflict, "idempotency_conflict", err.Error())
 	case errors.Is(err, submissionerrors.ErrInvalidStatusTransition):
 		writeSubmissionError(w, http.StatusConflict, "invalid_status_transition", err.Error())
 	case errors.Is(err, submissionerrors.ErrUnauthorizedActor):
@@ -312,9 +416,16 @@ func writeDistributionDomainError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, distributionerrors.ErrDistributionItemNotFound):
 		writeDistributionError(w, http.StatusNotFound, "distribution_item_not_found", err.Error())
+	case errors.Is(err, distributionerrors.ErrDistributionItemExists):
+		writeDistributionError(w, http.StatusConflict, "distribution_item_exists", err.Error())
 	case errors.Is(err, distributionerrors.ErrInvalidDistributionInput),
-		errors.Is(err, distributionerrors.ErrInvalidScheduleWindow):
+		errors.Is(err, distributionerrors.ErrInvalidScheduleWindow),
+		errors.Is(err, distributionerrors.ErrInvalidTimezone):
 		writeDistributionError(w, http.StatusBadRequest, "invalid_request", err.Error())
+	case errors.Is(err, distributionerrors.ErrUnsupportedPlatform):
+		writeDistributionError(w, http.StatusBadRequest, "unsupported_platform", err.Error())
+	case errors.Is(err, distributionerrors.ErrUnauthorizedInfluencer):
+		writeDistributionError(w, http.StatusForbidden, "forbidden", err.Error())
 	case errors.Is(err, distributionerrors.ErrInvalidStateTransition):
 		writeDistributionError(w, http.StatusConflict, "invalid_state_transition", err.Error())
 	default:
@@ -326,12 +437,32 @@ func writeVotingDomainError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, votingerrors.ErrVoteNotFound):
 		writeVotingError(w, http.StatusNotFound, "vote_not_found", err.Error())
+	case errors.Is(err, votingerrors.ErrCampaignNotFound):
+		writeVotingError(w, http.StatusNotFound, "campaign_not_found", err.Error())
+	case errors.Is(err, votingerrors.ErrRoundNotFound):
+		writeVotingError(w, http.StatusNotFound, "round_not_found", err.Error())
+	case errors.Is(err, votingerrors.ErrQuarantineNotFound):
+		writeVotingError(w, http.StatusNotFound, "quarantine_not_found", err.Error())
 	case errors.Is(err, votingerrors.ErrInvalidVoteInput):
 		writeVotingError(w, http.StatusBadRequest, "invalid_vote_input", err.Error())
+	case errors.Is(err, votingerrors.ErrInvalidQuarantineAction):
+		writeVotingError(w, http.StatusBadRequest, "invalid_quarantine_action", err.Error())
+	case errors.Is(err, votingerrors.ErrIdempotencyKeyRequired):
+		writeVotingError(w, http.StatusBadRequest, "idempotency_key_required", err.Error())
 	case errors.Is(err, votingerrors.ErrAlreadyRetracted):
 		writeVotingError(w, http.StatusConflict, "already_retracted", err.Error())
 	case errors.Is(err, votingerrors.ErrConflict):
 		writeVotingError(w, http.StatusConflict, "conflict", err.Error())
+	case errors.Is(err, votingerrors.ErrIdempotencyConflict):
+		writeVotingError(w, http.StatusConflict, "idempotency_conflict", err.Error())
+	case errors.Is(err, votingerrors.ErrCampaignNotActive):
+		writeVotingError(w, http.StatusConflict, "campaign_not_active", err.Error())
+	case errors.Is(err, votingerrors.ErrRoundClosed):
+		writeVotingError(w, http.StatusConflict, "round_closed", err.Error())
+	case errors.Is(err, votingerrors.ErrQuarantineResolved):
+		writeVotingError(w, http.StatusConflict, "quarantine_resolved", err.Error())
+	case errors.Is(err, votingerrors.ErrSelfVoteForbidden):
+		writeVotingError(w, http.StatusForbidden, "self_vote_forbidden", err.Error())
 	case errors.Is(err, votingerrors.ErrSubmissionNotFound):
 		writeVotingError(w, http.StatusNotFound, "submission_not_found", err.Error())
 	default:
@@ -545,11 +676,16 @@ func (s *Server) handleCampaignCreate(w http.ResponseWriter, r *http.Request) {
 		writeCampaignError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
 		return
 	}
+	requestID := getRequestID(r)
+	if requestID == "" {
+		writeCampaignError(w, http.StatusBadRequest, "missing_request_id", "X-Request-Id header is required")
+		return
+	}
 	var req campaignhttp.CreateCampaignRequest
 	if !s.decodeJSON(w, r, &req, writeCampaignError) {
 		return
 	}
-	resp, err := s.campaign.Handler.CreateCampaignHandler(r.Context(), userID, r.Header.Get("Idempotency-Key"), req)
+	resp, err := s.campaign.Handler.CreateCampaignHandler(r.Context(), userID, requestID, req)
 	if err != nil {
 		writeCampaignDomainError(w, err)
 		return
@@ -580,11 +716,20 @@ func (s *Server) handleCampaignGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCampaignUpdate(w http.ResponseWriter, r *http.Request) {
+	userID := getUserID(r)
+	if userID == "" {
+		writeCampaignError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
+		return
+	}
+	if getRequestID(r) == "" {
+		writeCampaignError(w, http.StatusBadRequest, "missing_request_id", "X-Request-Id header is required")
+		return
+	}
 	var req campaignhttp.UpdateCampaignRequest
 	if !s.decodeJSON(w, r, &req, writeCampaignError) {
 		return
 	}
-	if err := s.campaign.Handler.UpdateCampaignHandler(r.Context(), getUserID(r), r.PathValue("campaign_id"), req); err != nil {
+	if err := s.campaign.Handler.UpdateCampaignHandler(r.Context(), userID, r.PathValue("campaign_id"), req); err != nil {
 		writeCampaignDomainError(w, err)
 		return
 	}
@@ -620,11 +765,20 @@ func (s *Server) handleCampaignStatus(
 	r *http.Request,
 	fn func(context.Context, string, string, string) error,
 ) {
+	userID := getUserID(r)
+	if userID == "" {
+		writeCampaignError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
+		return
+	}
+	if getRequestID(r) == "" {
+		writeCampaignError(w, http.StatusBadRequest, "missing_request_id", "X-Request-Id header is required")
+		return
+	}
 	var req campaignhttp.StatusActionRequest
 	if !s.decodeJSON(w, r, &req, writeCampaignError) {
 		return
 	}
-	if err := fn(r.Context(), getUserID(r), r.PathValue("campaign_id"), req.Reason); err != nil {
+	if err := fn(r.Context(), userID, r.PathValue("campaign_id"), req.Reason); err != nil {
 		writeCampaignDomainError(w, err)
 		return
 	}
@@ -632,11 +786,20 @@ func (s *Server) handleCampaignStatus(
 }
 
 func (s *Server) handleCampaignMediaUploadURL(w http.ResponseWriter, r *http.Request) {
+	userID := getUserID(r)
+	if userID == "" {
+		writeCampaignError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
+		return
+	}
+	if getRequestID(r) == "" {
+		writeCampaignError(w, http.StatusBadRequest, "missing_request_id", "X-Request-Id header is required")
+		return
+	}
 	var req campaignhttp.GenerateUploadURLRequest
 	if !s.decodeJSON(w, r, &req, writeCampaignError) {
 		return
 	}
-	resp, err := s.campaign.Handler.GenerateUploadURLHandler(r.Context(), getUserID(r), r.PathValue("campaign_id"), req)
+	resp, err := s.campaign.Handler.GenerateUploadURLHandler(r.Context(), userID, r.PathValue("campaign_id"), req)
 	if err != nil {
 		writeCampaignDomainError(w, err)
 		return
@@ -645,13 +808,22 @@ func (s *Server) handleCampaignMediaUploadURL(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) handleCampaignMediaConfirm(w http.ResponseWriter, r *http.Request) {
+	userID := getUserID(r)
+	if userID == "" {
+		writeCampaignError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
+		return
+	}
+	if getRequestID(r) == "" {
+		writeCampaignError(w, http.StatusBadRequest, "missing_request_id", "X-Request-Id header is required")
+		return
+	}
 	var req campaignhttp.ConfirmMediaRequest
 	if !s.decodeJSON(w, r, &req, writeCampaignError) {
 		return
 	}
 	if err := s.campaign.Handler.ConfirmMediaHandler(
 		r.Context(),
-		getUserID(r),
+		userID,
 		r.PathValue("campaign_id"),
 		r.PathValue("media_id"),
 		req,
@@ -659,7 +831,7 @@ func (s *Server) handleCampaignMediaConfirm(w http.ResponseWriter, r *http.Reque
 		writeCampaignDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "confirmed"})
+	writeJSON(w, http.StatusAccepted, map[string]string{"status": "confirmed"})
 }
 
 func (s *Server) handleCampaignMediaList(w http.ResponseWriter, r *http.Request) {
@@ -690,11 +862,20 @@ func (s *Server) handleCampaignAnalyticsExport(w http.ResponseWriter, r *http.Re
 }
 
 func (s *Server) handleCampaignIncreaseBudget(w http.ResponseWriter, r *http.Request) {
+	userID := getUserID(r)
+	if userID == "" {
+		writeCampaignError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
+		return
+	}
+	if getRequestID(r) == "" {
+		writeCampaignError(w, http.StatusBadRequest, "missing_request_id", "X-Request-Id header is required")
+		return
+	}
 	var req campaignhttp.IncreaseBudgetRequest
 	if !s.decodeJSON(w, r, &req, writeCampaignError) {
 		return
 	}
-	if err := s.campaign.Handler.IncreaseBudgetHandler(r.Context(), getUserID(r), r.PathValue("campaign_id"), req); err != nil {
+	if err := s.campaign.Handler.IncreaseBudgetHandler(r.Context(), userID, r.PathValue("campaign_id"), req); err != nil {
 		writeCampaignDomainError(w, err)
 		return
 	}
@@ -702,11 +883,29 @@ func (s *Server) handleCampaignIncreaseBudget(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) handleSubmissionCreate(w http.ResponseWriter, r *http.Request) {
+	if !requireSubmissionAuthorization(w, r) || !requireSubmissionRequestID(w, r) {
+		return
+	}
+	userID, ok := requireSubmissionUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireSubmissionIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+
 	var req submissionhttp.CreateSubmissionRequest
 	if !s.decodeJSON(w, r, &req, writeSubmissionError) {
 		return
 	}
-	resp, err := s.submission.Handler.CreateSubmissionHandler(r.Context(), getUserID(r), req)
+	if req.IdempotencyKey != "" && strings.TrimSpace(req.IdempotencyKey) != idempotencyKey {
+		writeSubmissionError(w, http.StatusBadRequest, "idempotency_mismatch", "body idempotency_key must match Idempotency-Key header")
+		return
+	}
+	req.IdempotencyKey = idempotencyKey
+
+	resp, err := s.submission.Handler.CreateSubmissionHandler(r.Context(), userID, req)
 	if err != nil {
 		writeSubmissionDomainError(w, err)
 		return
@@ -715,7 +914,15 @@ func (s *Server) handleSubmissionCreate(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleSubmissionGet(w http.ResponseWriter, r *http.Request) {
-	resp, err := s.submission.Handler.GetSubmissionHandler(r.Context(), r.PathValue("submission_id"))
+	if !requireSubmissionAuthorization(w, r) || !requireSubmissionRequestID(w, r) {
+		return
+	}
+	userID, ok := requireSubmissionUser(w, r)
+	if !ok {
+		return
+	}
+
+	resp, err := s.submission.Handler.GetSubmissionHandler(r.Context(), userID, r.PathValue("submission_id"))
 	if err != nil {
 		writeSubmissionDomainError(w, err)
 		return
@@ -724,10 +931,18 @@ func (s *Server) handleSubmissionGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSubmissionList(w http.ResponseWriter, r *http.Request) {
+	if !requireSubmissionAuthorization(w, r) || !requireSubmissionRequestID(w, r) {
+		return
+	}
+	userID, ok := requireSubmissionUser(w, r)
+	if !ok {
+		return
+	}
+
 	query := r.URL.Query()
 	resp, err := s.submission.Handler.ListSubmissionsHandler(
 		r.Context(),
-		getUserID(r),
+		userID,
 		query.Get("campaign_id"),
 		query.Get("status"),
 	)
@@ -739,65 +954,159 @@ func (s *Server) handleSubmissionList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSubmissionApprove(w http.ResponseWriter, r *http.Request) {
+	if !requireSubmissionAuthorization(w, r) || !requireSubmissionRequestID(w, r) {
+		return
+	}
+	userID, ok := requireSubmissionUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireSubmissionIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+
 	var req submissionhttp.ApproveSubmissionRequest
 	if !s.decodeJSON(w, r, &req, writeSubmissionError) {
 		return
 	}
-	if err := s.submission.Handler.ApproveSubmissionHandler(r.Context(), getUserID(r), r.PathValue("submission_id"), req); err != nil {
+	req.IdempotencyKey = idempotencyKey
+	if err := s.submission.Handler.ApproveSubmissionHandler(r.Context(), userID, r.PathValue("submission_id"), req); err != nil {
 		writeSubmissionDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "approved"})
+	item, err := s.submission.Handler.GetSubmissionHandler(r.Context(), userID, r.PathValue("submission_id"))
+	if err != nil {
+		writeSubmissionDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"submission_id":    item.Submission.SubmissionID,
+		"status":           item.Submission.Status,
+		"verification_end": item.Submission.VerificationEnd,
+	})
 }
 
 func (s *Server) handleSubmissionReject(w http.ResponseWriter, r *http.Request) {
+	if !requireSubmissionAuthorization(w, r) || !requireSubmissionRequestID(w, r) {
+		return
+	}
+	userID, ok := requireSubmissionUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireSubmissionIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+
 	var req submissionhttp.RejectSubmissionRequest
 	if !s.decodeJSON(w, r, &req, writeSubmissionError) {
 		return
 	}
-	if err := s.submission.Handler.RejectSubmissionHandler(r.Context(), getUserID(r), r.PathValue("submission_id"), req); err != nil {
+	req.IdempotencyKey = idempotencyKey
+	if err := s.submission.Handler.RejectSubmissionHandler(r.Context(), userID, r.PathValue("submission_id"), req); err != nil {
 		writeSubmissionDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "rejected"})
+	item, err := s.submission.Handler.GetSubmissionHandler(r.Context(), userID, r.PathValue("submission_id"))
+	if err != nil {
+		writeSubmissionDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"submission_id": item.Submission.SubmissionID,
+		"status":        item.Submission.Status,
+	})
 }
 
 func (s *Server) handleSubmissionReport(w http.ResponseWriter, r *http.Request) {
+	if !requireSubmissionAuthorization(w, r) || !requireSubmissionRequestID(w, r) {
+		return
+	}
+	userID, ok := requireSubmissionUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireSubmissionIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+
 	var req submissionhttp.ReportSubmissionRequest
 	if !s.decodeJSON(w, r, &req, writeSubmissionError) {
 		return
 	}
-	if err := s.submission.Handler.ReportSubmissionHandler(r.Context(), getUserID(r), r.PathValue("submission_id"), req); err != nil {
+	req.IdempotencyKey = idempotencyKey
+	if err := s.submission.Handler.ReportSubmissionHandler(r.Context(), userID, r.PathValue("submission_id"), req); err != nil {
 		writeSubmissionDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "reported"})
+	item, err := s.submission.Handler.GetSubmissionHandler(r.Context(), userID, r.PathValue("submission_id"))
+	if err != nil {
+		writeSubmissionDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"submission_id": item.Submission.SubmissionID,
+		"status":        item.Submission.Status,
+	})
 }
 
+// handleSubmissionBulkOperation godoc
+// @Summary Execute bulk submission operation
+// @Description Approves or rejects multiple submissions in a single request.
+// @Tags submission-service
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param X-User-Id header string true "Actor user id"
+// @Param request body submissionhttp.BulkOperationRequest true "Bulk operation payload"
+// @Success 200 {object} submissionhttp.BulkOperationResponse
+// @Failure 400 {object} submissionhttp.ErrorResponse
+// @Failure 403 {object} submissionhttp.ErrorResponse
+// @Failure 404 {object} submissionhttp.ErrorResponse
+// @Failure 409 {object} submissionhttp.ErrorResponse
+// @Failure 500 {object} submissionhttp.ErrorResponse
+// @Router /submissions/bulk-operations [post]
 func (s *Server) handleSubmissionBulkOperation(w http.ResponseWriter, r *http.Request) {
+	if !requireSubmissionAuthorization(w, r) || !requireSubmissionRequestID(w, r) {
+		return
+	}
+	userID, ok := requireSubmissionUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireSubmissionIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+
 	var req submissionhttp.BulkOperationRequest
 	if !s.decodeJSON(w, r, &req, writeSubmissionError) {
 		return
 	}
-	processed := 0
-	actorID := getUserID(r)
-	for _, submissionID := range req.SubmissionIDs {
-		switch req.OperationType {
-		case "bulk_approve":
-			_ = s.submission.Handler.ApproveSubmissionHandler(r.Context(), actorID, submissionID, submissionhttp.ApproveSubmissionRequest{Reason: req.Reason})
-		case "bulk_reject":
-			_ = s.submission.Handler.RejectSubmissionHandler(r.Context(), actorID, submissionID, submissionhttp.RejectSubmissionRequest{Reason: req.Reason})
-		default:
-			writeSubmissionError(w, http.StatusBadRequest, "invalid_operation", "operation_type must be bulk_approve or bulk_reject")
-			return
-		}
-		processed++
+	req.IdempotencyKey = idempotencyKey
+	if req.ReasonCode == "" {
+		req.ReasonCode = strings.TrimSpace(req.Reason)
 	}
-	writeJSON(w, http.StatusOK, map[string]int{"processed": processed})
+	resp, err := s.submission.Handler.BulkOperationHandler(r.Context(), userID, req)
+	if err != nil {
+		writeSubmissionDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) handleSubmissionAnalytics(w http.ResponseWriter, r *http.Request) {
-	resp, err := s.submission.Handler.AnalyticsHandler(r.Context(), r.PathValue("submission_id"))
+	if !requireSubmissionAuthorization(w, r) || !requireSubmissionRequestID(w, r) {
+		return
+	}
+	userID, ok := requireSubmissionUser(w, r)
+	if !ok {
+		return
+	}
+	resp, err := s.submission.Handler.AnalyticsHandler(r.Context(), userID, r.PathValue("submission_id"))
 	if err != nil {
 		writeSubmissionDomainError(w, err)
 		return
@@ -806,7 +1115,14 @@ func (s *Server) handleSubmissionAnalytics(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) handleSubmissionCreatorDashboard(w http.ResponseWriter, r *http.Request) {
-	resp, err := s.submission.Handler.CreatorDashboardHandler(r.Context(), getUserID(r))
+	if !requireSubmissionAuthorization(w, r) || !requireSubmissionRequestID(w, r) {
+		return
+	}
+	userID, ok := requireSubmissionUser(w, r)
+	if !ok {
+		return
+	}
+	resp, err := s.submission.Handler.CreatorDashboardHandler(r.Context(), userID)
 	if err != nil {
 		writeSubmissionDomainError(w, err)
 		return
@@ -815,6 +1131,16 @@ func (s *Server) handleSubmissionCreatorDashboard(w http.ResponseWriter, r *http
 }
 
 func (s *Server) handleSubmissionBrandDashboard(w http.ResponseWriter, r *http.Request) {
+	if !requireSubmissionAuthorization(w, r) || !requireSubmissionRequestID(w, r) {
+		return
+	}
+	if _, ok := requireSubmissionUser(w, r); !ok {
+		return
+	}
+	if strings.TrimSpace(r.URL.Query().Get("campaign_id")) == "" {
+		writeSubmissionError(w, http.StatusBadRequest, "invalid_request", "campaign_id query parameter is required")
+		return
+	}
 	resp, err := s.submission.Handler.BrandDashboardHandler(r.Context(), r.URL.Query().Get("campaign_id"))
 	if err != nil {
 		writeSubmissionDomainError(w, err)
@@ -824,132 +1150,458 @@ func (s *Server) handleSubmissionBrandDashboard(w http.ResponseWriter, r *http.R
 }
 
 func (s *Server) handleDistributionAddOverlay(w http.ResponseWriter, r *http.Request) {
+	requestID := getRequestID(r)
+	itemID := r.PathValue("id")
+	s.logger.Info("distribution add overlay request received",
+		"event", "distribution_http_add_overlay_request_received",
+		"module", "campaign-editorial/distribution-service",
+		"layer", "platform",
+		"request_id", requestID,
+		"item_id", itemID,
+	)
 	var req distributionhttp.AddOverlayRequest
 	if !s.decodeJSON(w, r, &req, writeDistributionError) {
 		return
 	}
-	if err := s.distribution.Handler.AddOverlayHandler(r.Context(), r.PathValue("id"), req); err != nil {
+	if err := s.distribution.Handler.AddOverlayHandler(r.Context(), itemID, req); err != nil {
+		s.logger.Warn("distribution add overlay request failed",
+			"event", "distribution_http_add_overlay_request_failed",
+			"module", "campaign-editorial/distribution-service",
+			"layer", "platform",
+			"request_id", requestID,
+			"item_id", itemID,
+			"error", err.Error(),
+		)
 		writeDistributionDomainError(w, err)
 		return
 	}
+	s.logger.Info("distribution add overlay request succeeded",
+		"event", "distribution_http_add_overlay_request_succeeded",
+		"module", "campaign-editorial/distribution-service",
+		"layer", "platform",
+		"request_id", requestID,
+		"item_id", itemID,
+	)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "overlay_added"})
 }
 
 func (s *Server) handleDistributionPreview(w http.ResponseWriter, r *http.Request) {
-	resp, err := s.distribution.Handler.PreviewHandler(r.Context(), r.PathValue("id"))
+	requestID := getRequestID(r)
+	itemID := r.PathValue("id")
+	s.logger.Info("distribution preview request received",
+		"event", "distribution_http_preview_request_received",
+		"module", "campaign-editorial/distribution-service",
+		"layer", "platform",
+		"request_id", requestID,
+		"item_id", itemID,
+	)
+	resp, err := s.distribution.Handler.PreviewHandler(r.Context(), itemID)
 	if err != nil {
+		s.logger.Warn("distribution preview request failed",
+			"event", "distribution_http_preview_request_failed",
+			"module", "campaign-editorial/distribution-service",
+			"layer", "platform",
+			"request_id", requestID,
+			"item_id", itemID,
+			"error", err.Error(),
+		)
 		writeDistributionDomainError(w, err)
 		return
 	}
+	s.logger.Info("distribution preview request succeeded",
+		"event", "distribution_http_preview_request_succeeded",
+		"module", "campaign-editorial/distribution-service",
+		"layer", "platform",
+		"request_id", requestID,
+		"item_id", itemID,
+	)
 	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) handleDistributionSchedule(w http.ResponseWriter, r *http.Request) {
+	requestID := getRequestID(r)
+	itemID := r.PathValue("id")
+	userID := getUserID(r)
+	if userID == "" {
+		writeDistributionError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
+		return
+	}
+	s.logger.Info("distribution schedule request received",
+		"event", "distribution_http_schedule_request_received",
+		"module", "campaign-editorial/distribution-service",
+		"layer", "platform",
+		"request_id", requestID,
+		"item_id", itemID,
+		"influencer_id", userID,
+	)
 	var req distributionhttp.ScheduleRequest
 	if !s.decodeJSON(w, r, &req, writeDistributionError) {
 		return
 	}
-	if err := s.distribution.Handler.ScheduleHandler(r.Context(), getUserID(r), r.PathValue("id"), req); err != nil {
+	if err := s.distribution.Handler.ScheduleHandler(r.Context(), userID, itemID, req); err != nil {
+		s.logger.Warn("distribution schedule request failed",
+			"event", "distribution_http_schedule_request_failed",
+			"module", "campaign-editorial/distribution-service",
+			"layer", "platform",
+			"request_id", requestID,
+			"item_id", itemID,
+			"influencer_id", userID,
+			"error", err.Error(),
+		)
 		writeDistributionDomainError(w, err)
 		return
 	}
+	s.logger.Info("distribution schedule request succeeded",
+		"event", "distribution_http_schedule_request_succeeded",
+		"module", "campaign-editorial/distribution-service",
+		"layer", "platform",
+		"request_id", requestID,
+		"item_id", itemID,
+		"influencer_id", userID,
+	)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "scheduled"})
 }
 
 func (s *Server) handleDistributionReschedule(w http.ResponseWriter, r *http.Request) {
+	requestID := getRequestID(r)
+	itemID := r.PathValue("id")
+	userID := getUserID(r)
+	if userID == "" {
+		writeDistributionError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
+		return
+	}
+	s.logger.Info("distribution reschedule request received",
+		"event", "distribution_http_reschedule_request_received",
+		"module", "campaign-editorial/distribution-service",
+		"layer", "platform",
+		"request_id", requestID,
+		"item_id", itemID,
+		"influencer_id", userID,
+	)
 	var req distributionhttp.ScheduleRequest
 	if !s.decodeJSON(w, r, &req, writeDistributionError) {
 		return
 	}
-	if err := s.distribution.Handler.RescheduleHandler(r.Context(), getUserID(r), r.PathValue("id"), req); err != nil {
+	if err := s.distribution.Handler.RescheduleHandler(r.Context(), userID, itemID, req); err != nil {
+		s.logger.Warn("distribution reschedule request failed",
+			"event", "distribution_http_reschedule_request_failed",
+			"module", "campaign-editorial/distribution-service",
+			"layer", "platform",
+			"request_id", requestID,
+			"item_id", itemID,
+			"influencer_id", userID,
+			"error", err.Error(),
+		)
 		writeDistributionDomainError(w, err)
 		return
 	}
+	s.logger.Info("distribution reschedule request succeeded",
+		"event", "distribution_http_reschedule_request_succeeded",
+		"module", "campaign-editorial/distribution-service",
+		"layer", "platform",
+		"request_id", requestID,
+		"item_id", itemID,
+		"influencer_id", userID,
+	)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "rescheduled"})
 }
 
+func (s *Server) handleDistributionPublish(w http.ResponseWriter, r *http.Request) {
+	requestID := getRequestID(r)
+	itemID := r.PathValue("id")
+	userID := getUserID(r)
+	if userID == "" {
+		writeDistributionError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
+		return
+	}
+	s.logger.Info("distribution publish request received",
+		"event", "distribution_http_publish_request_received",
+		"module", "campaign-editorial/distribution-service",
+		"layer", "platform",
+		"request_id", requestID,
+		"item_id", itemID,
+		"influencer_id", userID,
+	)
+	var req distributionhttp.PublishRequest
+	if !s.decodeJSON(w, r, &req, writeDistributionError) {
+		return
+	}
+	if err := s.distribution.Handler.PublishHandler(r.Context(), userID, itemID, req); err != nil {
+		s.logger.Warn("distribution publish request failed",
+			"event", "distribution_http_publish_request_failed",
+			"module", "campaign-editorial/distribution-service",
+			"layer", "platform",
+			"request_id", requestID,
+			"item_id", itemID,
+			"influencer_id", userID,
+			"error", err.Error(),
+		)
+		writeDistributionDomainError(w, err)
+		return
+	}
+	s.logger.Info("distribution publish request succeeded",
+		"event", "distribution_http_publish_request_succeeded",
+		"module", "campaign-editorial/distribution-service",
+		"layer", "platform",
+		"request_id", requestID,
+		"item_id", itemID,
+		"influencer_id", userID,
+	)
+	writeJSON(w, http.StatusCreated, map[string]string{"status": "published"})
+}
+
 func (s *Server) handleDistributionDownload(w http.ResponseWriter, r *http.Request) {
+	requestID := getRequestID(r)
+	itemID := r.PathValue("id")
+	s.logger.Info("distribution download request received",
+		"event", "distribution_http_download_request_received",
+		"module", "campaign-editorial/distribution-service",
+		"layer", "platform",
+		"request_id", requestID,
+		"item_id", itemID,
+	)
 	var req distributionhttp.DownloadRequest
 	if !s.decodeJSON(w, r, &req, writeDistributionError) {
 		return
 	}
-	resp, err := s.distribution.Handler.DownloadHandler(r.Context(), r.PathValue("id"), req)
+	resp, err := s.distribution.Handler.DownloadHandler(r.Context(), itemID, req)
 	if err != nil {
+		s.logger.Warn("distribution download request failed",
+			"event", "distribution_http_download_request_failed",
+			"module", "campaign-editorial/distribution-service",
+			"layer", "platform",
+			"request_id", requestID,
+			"item_id", itemID,
+			"error", err.Error(),
+		)
 		writeDistributionDomainError(w, err)
 		return
 	}
+	s.logger.Info("distribution download request succeeded",
+		"event", "distribution_http_download_request_succeeded",
+		"module", "campaign-editorial/distribution-service",
+		"layer", "platform",
+		"request_id", requestID,
+		"item_id", itemID,
+	)
 	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) handleDistributionPublishMulti(w http.ResponseWriter, r *http.Request) {
+	requestID := getRequestID(r)
+	itemID := r.PathValue("id")
+	userID := getUserID(r)
+	if userID == "" {
+		writeDistributionError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
+		return
+	}
+	s.logger.Info("distribution publish multi request received",
+		"event", "distribution_http_publish_multi_request_received",
+		"module", "campaign-editorial/distribution-service",
+		"layer", "platform",
+		"request_id", requestID,
+		"item_id", itemID,
+		"influencer_id", userID,
+	)
 	var req distributionhttp.PublishMultiRequest
 	if !s.decodeJSON(w, r, &req, writeDistributionError) {
 		return
 	}
-	if err := s.distribution.Handler.PublishMultiHandler(r.Context(), getUserID(r), r.PathValue("id"), req); err != nil {
+	if err := s.distribution.Handler.PublishMultiHandler(r.Context(), userID, itemID, req); err != nil {
+		s.logger.Warn("distribution publish multi request failed",
+			"event", "distribution_http_publish_multi_request_failed",
+			"module", "campaign-editorial/distribution-service",
+			"layer", "platform",
+			"request_id", requestID,
+			"item_id", itemID,
+			"influencer_id", userID,
+			"error", err.Error(),
+		)
 		writeDistributionDomainError(w, err)
 		return
 	}
+	s.logger.Info("distribution publish multi request succeeded",
+		"event", "distribution_http_publish_multi_request_succeeded",
+		"module", "campaign-editorial/distribution-service",
+		"layer", "platform",
+		"request_id", requestID,
+		"item_id", itemID,
+		"influencer_id", userID,
+	)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "published"})
 }
 
 func (s *Server) handleDistributionRetry(w http.ResponseWriter, r *http.Request) {
-	if err := s.distribution.Handler.RetryHandler(r.Context(), getUserID(r), r.PathValue("id")); err != nil {
+	requestID := getRequestID(r)
+	itemID := r.PathValue("id")
+	userID := getUserID(r)
+	if userID == "" {
+		writeDistributionError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
+		return
+	}
+	s.logger.Info("distribution retry request received",
+		"event", "distribution_http_retry_request_received",
+		"module", "campaign-editorial/distribution-service",
+		"layer", "platform",
+		"request_id", requestID,
+		"item_id", itemID,
+		"influencer_id", userID,
+	)
+	if err := s.distribution.Handler.RetryHandler(r.Context(), userID, itemID); err != nil {
+		s.logger.Warn("distribution retry request failed",
+			"event", "distribution_http_retry_request_failed",
+			"module", "campaign-editorial/distribution-service",
+			"layer", "platform",
+			"request_id", requestID,
+			"item_id", itemID,
+			"influencer_id", userID,
+			"error", err.Error(),
+		)
 		writeDistributionDomainError(w, err)
 		return
 	}
+	s.logger.Info("distribution retry request succeeded",
+		"event", "distribution_http_retry_request_succeeded",
+		"module", "campaign-editorial/distribution-service",
+		"layer", "platform",
+		"request_id", requestID,
+		"item_id", itemID,
+		"influencer_id", userID,
+	)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "retrying"})
 }
 
 func (s *Server) handleVotingCreate(w http.ResponseWriter, r *http.Request) {
+	requestID := getRequestID(r)
+	userID := getUserID(r)
+	if strings.TrimSpace(userID) == "" {
+		writeVotingError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
+		return
+	}
+	idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if idempotencyKey == "" {
+		writeVotingError(w, http.StatusBadRequest, "idempotency_key_required", "Idempotency-Key header is required")
+		return
+	}
+
+	s.logger.Info("voting create request received",
+		"event", "voting_http_create_request_received",
+		"module", "campaign-editorial/voting-engine",
+		"layer", "platform",
+		"request_id", requestID,
+		"user_id", userID,
+	)
+
 	var req votinghttp.CreateVoteRequest
 	if !s.decodeJSON(w, r, &req, writeVotingError) {
 		return
 	}
-	resp, err := s.voting.Handler.CreateVoteHandler(r.Context(), getUserID(r), r.Header.Get("Idempotency-Key"), req)
+	resp, err := s.voting.Handler.CreateVoteHandler(
+		r.Context(),
+		userID,
+		idempotencyKey,
+		req,
+		resolveClientIP(r),
+		strings.TrimSpace(r.UserAgent()),
+	)
 	if err != nil {
+		s.logger.Warn("voting create request failed",
+			"event", "voting_http_create_request_failed",
+			"module", "campaign-editorial/voting-engine",
+			"layer", "platform",
+			"request_id", requestID,
+			"user_id", userID,
+			"error", err.Error(),
+		)
 		writeVotingDomainError(w, err)
 		return
 	}
+	s.logger.Info("voting create request succeeded",
+		"event", "voting_http_create_request_succeeded",
+		"module", "campaign-editorial/voting-engine",
+		"layer", "platform",
+		"request_id", requestID,
+		"user_id", userID,
+		"vote_id", resp.VoteID,
+		"submission_id", resp.SubmissionID,
+	)
 	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) handleVotingRetract(w http.ResponseWriter, r *http.Request) {
-	if err := s.voting.Handler.RetractVoteHandler(r.Context(), r.PathValue("vote_id"), getUserID(r)); err != nil {
+	requestID := getRequestID(r)
+	userID := getUserID(r)
+	if strings.TrimSpace(userID) == "" {
+		writeVotingError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
+		return
+	}
+	idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if idempotencyKey == "" {
+		writeVotingError(w, http.StatusBadRequest, "idempotency_key_required", "Idempotency-Key header is required")
+		return
+	}
+	voteID := r.PathValue("vote_id")
+	s.logger.Info("voting retract request received",
+		"event", "voting_http_retract_request_received",
+		"module", "campaign-editorial/voting-engine",
+		"layer", "platform",
+		"request_id", requestID,
+		"user_id", userID,
+		"vote_id", voteID,
+	)
+	if err := s.voting.Handler.RetractVoteHandler(r.Context(), voteID, userID, idempotencyKey); err != nil {
+		s.logger.Warn("voting retract request failed",
+			"event", "voting_http_retract_request_failed",
+			"module", "campaign-editorial/voting-engine",
+			"layer", "platform",
+			"request_id", requestID,
+			"user_id", userID,
+			"vote_id", voteID,
+			"error", err.Error(),
+		)
 		writeVotingDomainError(w, err)
 		return
 	}
+	s.logger.Info("voting retract request succeeded",
+		"event", "voting_http_retract_request_succeeded",
+		"module", "campaign-editorial/voting-engine",
+		"layer", "platform",
+		"request_id", requestID,
+		"user_id", userID,
+		"vote_id", voteID,
+	)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "retracted"})
 }
 
 func (s *Server) handleVotingSubmissionVotes(w http.ResponseWriter, r *http.Request) {
-	resp, err := s.voting.Handler.SubmissionVotesHandler(r.Context(), r.PathValue("submission_id"))
+	requestID := getRequestID(r)
+	submissionID := r.PathValue("submission_id")
+	resp, err := s.voting.Handler.SubmissionVotesHandler(r.Context(), submissionID)
 	if err != nil {
+		s.logger.Warn("voting submission score request failed",
+			"event", "voting_http_submission_scores_failed",
+			"module", "campaign-editorial/voting-engine",
+			"layer", "platform",
+			"request_id", requestID,
+			"submission_id", submissionID,
+			"error", err.Error(),
+		)
 		writeVotingDomainError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
 
-func (s *Server) handleVotingCampaignLeaderboard(w http.ResponseWriter, r *http.Request) {
-	resp, err := s.voting.Handler.CampaignLeaderboardHandler(r.Context(), r.PathValue("campaign_id"))
-	if err != nil {
-		writeVotingDomainError(w, err)
+func (s *Server) handleVotingLegacyLeaderboard(w http.ResponseWriter, r *http.Request) {
+	if campaignID := strings.TrimSpace(r.URL.Query().Get("campaign_id")); campaignID != "" {
+		resp, err := s.voting.Handler.CampaignLeaderboardHandler(r.Context(), campaignID)
+		if err != nil {
+			writeVotingDomainError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, resp)
 		return
 	}
-	writeJSON(w, http.StatusOK, resp)
-}
-
-func (s *Server) handleVotingRoundLeaderboard(w http.ResponseWriter, r *http.Request) {
-	resp, err := s.voting.Handler.CampaignLeaderboardHandler(r.Context(), r.PathValue("round_id"))
-	if err != nil {
-		writeVotingDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, resp)
-}
-
-func (s *Server) handleVotingTrendingLeaderboard(w http.ResponseWriter, r *http.Request) {
 	resp, err := s.voting.Handler.TrendingLeaderboardHandler(r.Context())
 	if err != nil {
 		writeVotingDomainError(w, err)
@@ -958,9 +1610,74 @@ func (s *Server) handleVotingTrendingLeaderboard(w http.ResponseWriter, r *http.
 	writeJSON(w, http.StatusOK, resp)
 }
 
-func (s *Server) handleVotingCreatorLeaderboard(w http.ResponseWriter, r *http.Request) {
-	resp, err := s.voting.Handler.CreatorLeaderboardHandler(r.Context(), r.PathValue("user_id"))
+func (s *Server) handleVotingCampaignLeaderboard(w http.ResponseWriter, r *http.Request) {
+	requestID := getRequestID(r)
+	campaignID := r.PathValue("campaign_id")
+	resp, err := s.voting.Handler.CampaignLeaderboardHandler(r.Context(), campaignID)
 	if err != nil {
+		s.logger.Warn("voting campaign leaderboard request failed",
+			"event", "voting_http_campaign_leaderboard_failed",
+			"module", "campaign-editorial/voting-engine",
+			"layer", "platform",
+			"request_id", requestID,
+			"campaign_id", campaignID,
+			"error", err.Error(),
+		)
+		writeVotingDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleVotingRoundLeaderboard(w http.ResponseWriter, r *http.Request) {
+	requestID := getRequestID(r)
+	roundID := r.PathValue("round_id")
+	resp, err := s.voting.Handler.RoundLeaderboardHandler(r.Context(), roundID)
+	if err != nil {
+		s.logger.Warn("voting round leaderboard request failed",
+			"event", "voting_http_round_leaderboard_failed",
+			"module", "campaign-editorial/voting-engine",
+			"layer", "platform",
+			"request_id", requestID,
+			"round_id", roundID,
+			"error", err.Error(),
+		)
+		writeVotingDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleVotingTrendingLeaderboard(w http.ResponseWriter, r *http.Request) {
+	requestID := getRequestID(r)
+	resp, err := s.voting.Handler.TrendingLeaderboardHandler(r.Context())
+	if err != nil {
+		s.logger.Warn("voting trending leaderboard request failed",
+			"event", "voting_http_trending_leaderboard_failed",
+			"module", "campaign-editorial/voting-engine",
+			"layer", "platform",
+			"request_id", requestID,
+			"error", err.Error(),
+		)
+		writeVotingDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleVotingCreatorLeaderboard(w http.ResponseWriter, r *http.Request) {
+	requestID := getRequestID(r)
+	userID := r.PathValue("user_id")
+	resp, err := s.voting.Handler.CreatorLeaderboardHandler(r.Context(), userID)
+	if err != nil {
+		s.logger.Warn("voting creator leaderboard request failed",
+			"event", "voting_http_creator_leaderboard_failed",
+			"module", "campaign-editorial/voting-engine",
+			"layer", "platform",
+			"request_id", requestID,
+			"user_id", userID,
+			"error", err.Error(),
+		)
 		writeVotingDomainError(w, err)
 		return
 	}
@@ -968,8 +1685,18 @@ func (s *Server) handleVotingCreatorLeaderboard(w http.ResponseWriter, r *http.R
 }
 
 func (s *Server) handleVotingRoundResults(w http.ResponseWriter, r *http.Request) {
-	resp, err := s.voting.Handler.RoundResultsHandler(r.Context(), r.PathValue("round_id"))
+	requestID := getRequestID(r)
+	roundID := r.PathValue("round_id")
+	resp, err := s.voting.Handler.RoundResultsHandler(r.Context(), roundID)
 	if err != nil {
+		s.logger.Warn("voting round results request failed",
+			"event", "voting_http_round_results_failed",
+			"module", "campaign-editorial/voting-engine",
+			"layer", "platform",
+			"request_id", requestID,
+			"round_id", roundID,
+			"error", err.Error(),
+		)
 		writeVotingDomainError(w, err)
 		return
 	}
@@ -977,8 +1704,16 @@ func (s *Server) handleVotingRoundResults(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleVotingAnalytics(w http.ResponseWriter, r *http.Request) {
+	requestID := getRequestID(r)
 	resp, err := s.voting.Handler.VoteAnalyticsHandler(r.Context())
 	if err != nil {
+		s.logger.Warn("voting analytics request failed",
+			"event", "voting_http_analytics_failed",
+			"module", "campaign-editorial/voting-engine",
+			"layer", "platform",
+			"request_id", requestID,
+			"error", err.Error(),
+		)
 		writeVotingDomainError(w, err)
 		return
 	}
@@ -986,11 +1721,38 @@ func (s *Server) handleVotingAnalytics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleVotingQuarantineAction(w http.ResponseWriter, r *http.Request) {
-	var payload map[string]string
-	if !s.decodeJSON(w, r, &payload, writeVotingError) {
+	requestID := getRequestID(r)
+	userID := getUserID(r)
+	if strings.TrimSpace(userID) == "" {
+		writeVotingError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
 		return
 	}
-	if err := s.voting.Handler.QuarantineActionHandler(r.Context(), r.PathValue("quarantine_id"), payload["action"]); err != nil {
+	idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if idempotencyKey == "" {
+		writeVotingError(w, http.StatusBadRequest, "idempotency_key_required", "Idempotency-Key header is required")
+		return
+	}
+	var req votinghttp.QuarantineActionRequest
+	if !s.decodeJSON(w, r, &req, writeVotingError) {
+		return
+	}
+	quarantineID := r.PathValue("quarantine_id")
+	if err := s.voting.Handler.QuarantineActionHandler(
+		r.Context(),
+		quarantineID,
+		req.Action,
+		userID,
+		idempotencyKey,
+	); err != nil {
+		s.logger.Warn("voting quarantine action request failed",
+			"event", "voting_http_quarantine_action_failed",
+			"module", "campaign-editorial/voting-engine",
+			"layer", "platform",
+			"request_id", requestID,
+			"user_id", userID,
+			"quarantine_id", quarantineID,
+			"error", err.Error(),
+		)
 		writeVotingDomainError(w, err)
 		return
 	}

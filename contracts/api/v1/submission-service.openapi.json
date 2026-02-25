@@ -32,7 +32,74 @@
       "post": {
         "summary": "Report submission"
       }
+    },
+    "/submissions/bulk-operations": {
+      "post": {
+        "summary": "Execute bulk submission operation"
+      }
+    },
+    "/submissions/{submission_id}/analytics": {
+      "get": {
+        "summary": "Get submission analytics"
+      }
+    },
+    "/dashboard/creator": {
+      "get": {
+        "summary": "Get creator submission dashboard"
+      }
+    },
+    "/dashboard/brand": {
+      "get": {
+        "summary": "Get brand submission dashboard"
+      }
+    },
+    "/v1/submissions": {
+      "post": {
+        "summary": "Create submission"
+      },
+      "get": {
+        "summary": "List submissions"
+      }
+    },
+    "/v1/submissions/{submission_id}": {
+      "get": {
+        "summary": "Get submission"
+      }
+    },
+    "/v1/submissions/{submission_id}/approve": {
+      "post": {
+        "summary": "Approve submission"
+      }
+    },
+    "/v1/submissions/{submission_id}/reject": {
+      "post": {
+        "summary": "Reject submission"
+      }
+    },
+    "/v1/submissions/{submission_id}/report": {
+      "post": {
+        "summary": "Report submission"
+      }
+    },
+    "/v1/submissions/bulk-operations": {
+      "post": {
+        "summary": "Execute bulk submission operation"
+      }
+    },
+    "/v1/submissions/{submission_id}/analytics": {
+      "get": {
+        "summary": "Get submission analytics"
+      }
+    },
+    "/v1/dashboard/creator": {
+      "get": {
+        "summary": "Get creator submission dashboard"
+      }
+    },
+    "/v1/dashboard/brand": {
+      "get": {
+        "summary": "Get brand submission dashboard"
+      }
     }
   }
 }
-

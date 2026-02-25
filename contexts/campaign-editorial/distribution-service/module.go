@@ -20,6 +20,7 @@ type Dependencies struct {
 	Repository ports.Repository
 	Clock      ports.Clock
 	IDGen      ports.IDGenerator
+	Outbox     ports.OutboxWriter
 	Logger     *slog.Logger
 }
 
@@ -28,11 +29,13 @@ func NewModule(deps Dependencies) Module {
 		Repository: deps.Repository,
 		Clock:      deps.Clock,
 		IDGen:      deps.IDGen,
+		Outbox:     deps.Outbox,
 		Logger:     deps.Logger,
 	}
 	queryUseCase := queries.UseCase{
 		Repository: deps.Repository,
 		Clock:      deps.Clock,
+		Logger:     deps.Logger,
 	}
 	return Module{
 		Handler: httpadapter.Handler{
@@ -49,6 +52,7 @@ func NewInMemoryModule(seed []entities.DistributionItem, logger *slog.Logger) Mo
 		Repository: store,
 		Clock:      store,
 		IDGen:      store,
+		Outbox:     store,
 		Logger:     logger,
 	})
 	module.Store = store

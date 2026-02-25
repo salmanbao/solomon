@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "solomon/contracts/events/v1/voting_round.closed.schema.json",
+  "title": "voting_round.closed",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "source_service",
+    "trace_id",
+    "schema_version",
+    "partition_key_path",
+    "partition_key",
+    "data"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "minLength": 1 },
+    "event_type": { "const": "voting_round.closed" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "source_service": { "const": "voting-engine" },
+    "trace_id": { "type": "string", "minLength": 1 },
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "partition_key_path": { "const": "round_id" },
+    "partition_key": { "type": "string", "minLength": 1 },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "round_id",
+        "campaign_id",
+        "status",
+        "closed_at"
+      ],
+      "properties": {
+        "round_id": { "type": "string", "minLength": 1 },
+        "campaign_id": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "enum": ["closed", "archived"] },
+        "closed_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

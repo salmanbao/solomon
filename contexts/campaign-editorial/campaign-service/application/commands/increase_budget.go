@@ -21,6 +21,7 @@ type IncreaseBudgetCommand struct {
 type IncreaseBudgetUseCase struct {
 	Campaigns ports.CampaignRepository
 	History   ports.HistoryRepository
+	Outbox    ports.OutboxWriter
 	Clock     ports.Clock
 	IDGen     ports.IDGenerator
 	Logger    *slog.Logger
@@ -38,7 +39,7 @@ func (uc IncreaseBudgetUseCase) Execute(ctx context.Context, cmd IncreaseBudgetC
 	if strings.TrimSpace(cmd.ActorID) == "" || campaign.BrandID != strings.TrimSpace(cmd.ActorID) {
 		return domainerrors.ErrInvalidCampaignInput
 	}
-	if campaign.Status == entities.CampaignStatusCompleted {
+	if campaign.Status != entities.CampaignStatusPaused {
 		return domainerrors.ErrInvalidStateTransition
 	}
 
@@ -60,6 +61,31 @@ func (uc IncreaseBudgetUseCase) Execute(ctx context.Context, cmd IncreaseBudgetC
 		CreatedAt:   campaign.UpdatedAt,
 	}); err != nil {
 		return err
+	}
+	if uc.Outbox != nil {
+		eventID, err := uc.IDGen.NewID(ctx)
+		if err != nil {
+			return err
+		}
+		envelope, err := newCampaignEnvelope(
+			eventID,
+			"campaign.budget_updated",
+			campaign.CampaignID,
+			campaign.UpdatedAt,
+			map[string]any{
+				"campaign_id":      campaign.CampaignID,
+				"budget_total":     campaign.BudgetTotal,
+				"budget_spent":     campaign.BudgetSpent,
+				"budget_reserved":  campaign.BudgetReserved,
+				"budget_remaining": campaign.BudgetRemaining,
+			},
+		)
+		if err != nil {
+			return err
+		}
+		if err := uc.Outbox.AppendOutbox(ctx, envelope); err != nil {
+			return err
+		}
 	}
 
 	logger.Info("campaign budget increased",

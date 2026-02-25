@@ -17,6 +17,7 @@ type GenerateUploadURLCommand struct {
 	CampaignID  string
 	ActorID     string
 	FileName    string
+	FileSize    int64
 	ContentType string
 }
 
@@ -42,6 +43,18 @@ func (uc GenerateUploadURLUseCase) Execute(ctx context.Context, cmd GenerateUplo
 	}
 	if strings.TrimSpace(cmd.ActorID) == "" || campaign.BrandID != strings.TrimSpace(cmd.ActorID) {
 		return GenerateUploadURLResult{}, domainerrors.ErrInvalidCampaignInput
+	}
+	if campaign.Status == entities.CampaignStatusCompleted {
+		return GenerateUploadURLResult{}, domainerrors.ErrInvalidStateTransition
+	}
+	if cmd.FileSize <= 0 {
+		return GenerateUploadURLResult{}, domainerrors.ErrInvalidCampaignInput
+	}
+	if cmd.FileSize > 500*1024*1024 {
+		return GenerateUploadURLResult{}, domainerrors.ErrMediaFileTooLarge
+	}
+	if !isSupportedMediaContentType(cmd.ContentType) {
+		return GenerateUploadURLResult{}, domainerrors.ErrUnsupportedMediaType
 	}
 
 	mediaID, err := uc.IDGen.NewID(ctx)
@@ -94,8 +107,26 @@ func (uc ConfirmMediaUseCase) Execute(ctx context.Context, cmd ConfirmMediaComma
 	if strings.TrimSpace(cmd.MediaID) == "" || strings.TrimSpace(cmd.AssetPath) == "" {
 		return domainerrors.ErrInvalidCampaignInput
 	}
+	if !isSupportedMediaContentType(cmd.ContentType) {
+		return domainerrors.ErrUnsupportedMediaType
+	}
 
 	now := uc.Clock.Now().UTC()
+	if existing, err := uc.Media.GetMedia(ctx, strings.TrimSpace(cmd.MediaID)); err == nil {
+		if existing.CampaignID == campaign.CampaignID &&
+			existing.AssetPath == strings.TrimSpace(cmd.AssetPath) &&
+			existing.ContentType == strings.TrimSpace(cmd.ContentType) {
+			return nil
+		}
+		return domainerrors.ErrMediaAlreadyConfirmed
+	}
+	items, err := uc.Media.ListMediaByCampaign(ctx, campaign.CampaignID)
+	if err != nil {
+		return err
+	}
+	if len(items) >= 10 {
+		return domainerrors.ErrMediaLimitReached
+	}
 	media := entities.Media{
 		MediaID:     strings.TrimSpace(cmd.MediaID),
 		CampaignID:  campaign.CampaignID,
@@ -128,4 +159,15 @@ func sanitizeFileName(fileName string) string {
 	value = strings.ReplaceAll(value, "/", "-")
 	value = strings.ReplaceAll(value, "\\", "-")
 	return value
+}
+
+func isSupportedMediaContentType(contentType string) bool {
+	switch strings.ToLower(strings.TrimSpace(contentType)) {
+	case "video/mp4", "video/quicktime", "video/x-msvideo",
+		"image/jpeg", "image/png", "image/gif",
+		"audio/mpeg", "audio/wav", "audio/aac":
+		return true
+	default:
+		return false
+	}
 }

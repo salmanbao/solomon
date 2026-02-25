@@ -36,12 +36,18 @@ Canonical ownership is aligned to:
 
 Migration file:
 - `migrations/20260225_0003_m04_campaign_service.sql`
+- `migrations/20260225_0007_m04_campaign_service_fields.sql`
+- `migrations/20260225_0008_m04_campaign_outbox_and_dedup.sql`
 
 ## Event and Outbox Behavior
-This iteration defines module logic and HTTP contract surfaces. Canonical event names remain:
+Canonical event names:
 - `campaign.created`, `campaign.launched`, `campaign.paused`, `campaign.resumed`, `campaign.completed`, `campaign.budget_updated`
 
-Outbox relay wiring is not yet enabled for M04 in bootstrap; it is a follow-up hardening slice.
+Outbox/runtime wiring is active:
+- API process writes campaign outbox rows through the M04 PostgreSQL adapter.
+- Worker process relays pending `campaign_outbox` rows to the event bus (topic = `event_type`).
+- Worker process consumes `submission.created` and projects reservation/auto-pause updates.
+- Worker process runs deadline completion sweep and emits `campaign.completed`.
 
 ## Failure Handling and Idempotency
 - Domain errors are mapped to HTTP status in `internal/platform/httpserver/server.go`
@@ -66,8 +72,8 @@ M04 is the earliest monolith service in MVP dependency order and unblocks M26/M0
 - Handler-only implementation: rejected because it would violate domain/application separation.
 
 ### Tradeoffs
-- Faster module rollout and deterministic tests.
-- Outbox/runtime persistence for M04 events remains a follow-up.
+- In-memory module still exists for deterministic unit tests.
+- Runtime path now uses PostgreSQL + worker relays for production reliability.
 
 ### Consequences
 - Extraction-ready boundaries are maintained.
@@ -78,4 +84,3 @@ M04 is the earliest monolith service in MVP dependency order and unblocks M26/M0
 - Routing: `internal/platform/httpserver/server.go`
 - Migration: `migrations/20260225_0003_m04_campaign_service.sql`
 - Canonical refs: `viralForge/specs/service-architecture-map.yaml`, `viralForge/specs/dependencies.yaml`
-

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"solomon/contexts/campaign-editorial/campaign-service/domain/entities"
+	contractsv1 "solomon/contracts/gen/events/v1"
 )
 
 type CampaignFilter struct {
@@ -49,4 +50,69 @@ type Clock interface {
 
 type IDGenerator interface {
 	NewID(ctx context.Context) (string, error)
+}
+
+type EventEnvelope = contractsv1.Envelope
+
+type OutboxMessage struct {
+	OutboxID     string
+	EventType    string
+	PartitionKey string
+	Payload      []byte
+	CreatedAt    time.Time
+}
+
+type OutboxWriter interface {
+	AppendOutbox(ctx context.Context, envelope EventEnvelope) error
+}
+
+type OutboxRepository interface {
+	ListPendingOutbox(ctx context.Context, limit int) ([]OutboxMessage, error)
+	MarkOutboxPublished(ctx context.Context, outboxID string, publishedAt time.Time) error
+}
+
+type EventPublisher interface {
+	Publish(ctx context.Context, topic string, event EventEnvelope) error
+}
+
+type EventSubscriber interface {
+	Subscribe(
+		ctx context.Context,
+		topic string,
+		consumerGroup string,
+		handler func(context.Context, EventEnvelope) error,
+	) error
+}
+
+type EventDedupStore interface {
+	ReserveEvent(ctx context.Context, eventID string, payloadHash string, expiresAt time.Time) (bool, error)
+}
+
+type SubmissionCreatedResult struct {
+	CampaignID           string
+	BudgetReservedDelta  float64
+	BudgetRemaining      float64
+	AutoPaused           bool
+	NewStatus            entities.CampaignStatus
+}
+
+type SubmissionCreatedRepository interface {
+	ApplySubmissionCreated(
+		ctx context.Context,
+		campaignID string,
+		eventID string,
+		occurredAt time.Time,
+	) (SubmissionCreatedResult, error)
+}
+
+type DeadlineCompletionResult struct {
+	CampaignID string
+}
+
+type DeadlineRepository interface {
+	CompleteCampaignsPastDeadline(
+		ctx context.Context,
+		now time.Time,
+		limit int,
+	) ([]DeadlineCompletionResult, error)
 }

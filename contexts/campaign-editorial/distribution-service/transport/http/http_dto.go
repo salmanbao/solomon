@@ -27,6 +27,12 @@ type PublishMultiRequest struct {
 	Caption   string   `json:"caption"`
 }
 
+type PublishRequest struct {
+	Platforms  []string `json:"platforms"`
+	Caption    string   `json:"caption"`
+	PublishNow bool     `json:"publish_now"`
+}
+
 type DistributionItemDTO struct {
 	ID              string   `json:"id"`
 	InfluencerID    string   `json:"influencer_id"`
