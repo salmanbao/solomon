@@ -1,0 +1,35 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Voting Engine API",
+    "version": "v1"
+  },
+  "paths": {
+    "/v1/votes": {
+      "post": {
+        "summary": "Create vote"
+      }
+    },
+    "/v1/votes/{vote_id}": {
+      "delete": {
+        "summary": "Retract vote"
+      }
+    },
+    "/v1/votes/submissions/{submission_id}": {
+      "get": {
+        "summary": "Get submission votes"
+      }
+    },
+    "/v1/leaderboards/campaign/{campaign_id}": {
+      "get": {
+        "summary": "Campaign leaderboard"
+      }
+    },
+    "/v1/leaderboards/trending": {
+      "get": {
+        "summary": "Trending leaderboard"
+      }
+    }
+  }
+}
+

@@ -2,10 +2,10 @@ package ports
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"solomon/contexts/campaign-editorial/content-library-marketplace/domain/entities"
+	contractsv1 "solomon/contracts/gen/events/v1"
 )
 
 // ClipListFilter defines read-side filtering/pagination for the clip catalog.
@@ -110,18 +110,8 @@ type EventDedupStore interface {
 	ReserveEvent(ctx context.Context, eventID string, payloadHash string, expiresAt time.Time) (bool, error)
 }
 
-// EventEnvelope is the transport-neutral event shape used by worker adapters.
-type EventEnvelope struct {
-	EventID          string
-	EventType        string
-	OccurredAt       time.Time
-	SourceService    string
-	TraceID          string
-	SchemaVersion    int
-	PartitionKeyPath string
-	PartitionKey     string
-	Data             json.RawMessage
-}
+// EventEnvelope reuses the canonical cross-runtime envelope contract.
+type EventEnvelope = contractsv1.Envelope
 
 // EventPublisher publishes canonical envelopes to a topic.
 type EventPublisher interface {

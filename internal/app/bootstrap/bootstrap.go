@@ -3,16 +3,23 @@ package bootstrap
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
+	campaignservice "solomon/contexts/campaign-editorial/campaign-service"
 	contentlibrarymarketplace "solomon/contexts/campaign-editorial/content-library-marketplace"
 	postgresadapter "solomon/contexts/campaign-editorial/content-library-marketplace/adapters/postgres"
 	workerapp "solomon/contexts/campaign-editorial/content-library-marketplace/application/workers"
+	distributionservice "solomon/contexts/campaign-editorial/distribution-service"
+	submissionservice "solomon/contexts/campaign-editorial/submission-service"
+	votingengine "solomon/contexts/campaign-editorial/voting-engine"
 	authorization "solomon/contexts/identity-access/authorization-service"
+	authevents "solomon/contexts/identity-access/authorization-service/adapters/events"
 	authmemory "solomon/contexts/identity-access/authorization-service/adapters/memory"
 	authpostgres "solomon/contexts/identity-access/authorization-service/adapters/postgres"
+	authworkers "solomon/contexts/identity-access/authorization-service/application/workers"
 	"solomon/internal/platform/config"
 	"solomon/internal/platform/db"
 	"solomon/internal/platform/httpserver"
@@ -33,6 +40,7 @@ type WorkerApp struct {
 	outboxRelay  workerapp.OutboxRelay
 	distribution workerapp.DistributionStatusConsumer
 	expirer      workerapp.ClaimExpirer
+	authzOutbox  authworkers.OutboxRelay
 	pollInterval time.Duration
 	logger       *slog.Logger
 }
@@ -40,7 +48,7 @@ type WorkerApp struct {
 func BuildAPI() (*APIApp, error) {
 	cfg, err := config.Load()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load config: %w", err)
 	}
 
 	logger := slog.Default().With("service", cfg.ServiceName, "process", "api")
@@ -50,7 +58,7 @@ func BuildAPI() (*APIApp, error) {
 
 	pg, err := db.Connect(cfg.PostgresDSN)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("connect postgres: %w", err)
 	}
 
 	repo := postgresadapter.NewRepository(pg.DB, logger)
@@ -82,7 +90,21 @@ func BuildAPI() (*APIApp, error) {
 		Logger:             logger,
 	})
 
-	server := httpserver.New(module, authModule, logger, normalizeAddr(cfg.HTTPPort))
+	campaignModule := campaignservice.NewInMemoryModule(nil, logger)
+	submissionModule := submissionservice.NewInMemoryModule(nil, logger)
+	distributionModule := distributionservice.NewInMemoryModule(nil, logger)
+	votingModule := votingengine.NewInMemoryModule(nil, logger)
+
+	server := httpserver.New(
+		module,
+		authModule,
+		campaignModule,
+		submissionModule,
+		distributionModule,
+		votingModule,
+		logger,
+		normalizeAddr(cfg.HTTPPort),
+	)
 	return &APIApp{
 		server:   server,
 		postgres: pg,
@@ -93,7 +115,7 @@ func BuildAPI() (*APIApp, error) {
 func BuildWorker() (*WorkerApp, error) {
 	cfg, err := config.Load()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load config: %w", err)
 	}
 
 	logger := slog.Default().With("service", cfg.ServiceName, "process", "worker")
@@ -103,15 +125,18 @@ func BuildWorker() (*WorkerApp, error) {
 
 	pg, err := db.Connect(cfg.PostgresDSN)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("connect postgres: %w", err)
 	}
 
 	kafka, err := messaging.NewKafka(cfg.KafkaBrokers, logger)
 	if err != nil {
-		return nil, err
+		_ = pg.Close()
+		return nil, fmt.Errorf("init messaging adapter: %w", err)
 	}
 
 	repo := postgresadapter.NewRepository(pg.DB, logger)
+	authRepo := authpostgres.NewRepository(pg.DB, logger)
+	authPublisher := authevents.NewPublisher(logger)
 	return &WorkerApp{
 		postgres: pg,
 		outboxRelay: workerapp.OutboxRelay{
@@ -135,6 +160,13 @@ func BuildWorker() (*WorkerApp, error) {
 			Claims: repo,
 			Clock:  postgresadapter.SystemClock{},
 			Logger: logger,
+		},
+		authzOutbox: authworkers.OutboxRelay{
+			Outbox:    authRepo,
+			Publisher: authPublisher,
+			Clock:     authpostgres.SystemClock{},
+			BatchSize: 100,
+			Logger:    logger,
 		},
 		pollInterval: 2 * time.Second,
 		logger:       logger,
@@ -160,14 +192,19 @@ func (a *APIApp) Close() error {
 }
 
 func (w *WorkerApp) Run(ctx context.Context) error {
+	logger := w.logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	if err := w.distribution.Start(ctx); err != nil {
-		return err
+		return fmt.Errorf("start marketplace distribution consumer: %w", err)
 	}
 
 	ticker := time.NewTicker(w.pollInterval)
 	defer ticker.Stop()
 
-	w.logger.Info("worker app started",
+	logger.Info("worker app started",
 		"event", "bootstrap_worker_started",
 		"module", "internal/app/bootstrap",
 		"layer", "platform",
@@ -176,10 +213,13 @@ func (w *WorkerApp) Run(ctx context.Context) error {
 
 	for {
 		if err := w.expirer.RunOnce(ctx); err != nil {
-			return err
+			return fmt.Errorf("run marketplace claim expirer: %w", err)
 		}
 		if err := w.outboxRelay.RunOnce(ctx); err != nil {
-			return err
+			return fmt.Errorf("run marketplace outbox relay: %w", err)
+		}
+		if err := w.authzOutbox.RunOnce(ctx); err != nil {
+			return fmt.Errorf("run authz outbox relay: %w", err)
 		}
 		select {
 		case <-ctx.Done():

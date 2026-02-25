@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "solomon/contracts/events/v1/distribution.published.schema.json",
+  "title": "distribution.published",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "claim_id"
+  ],
+  "properties": {
+    "claim_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "distribution_item_id": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 )
 
+// hashRequest returns a deterministic digest for idempotency request matching.
 func hashRequest(payload any) (string, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {

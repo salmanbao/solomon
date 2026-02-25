@@ -1,0 +1,38 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Submission Service API",
+    "version": "v1"
+  },
+  "paths": {
+    "/submissions": {
+      "post": {
+        "summary": "Create submission"
+      },
+      "get": {
+        "summary": "List submissions"
+      }
+    },
+    "/submissions/{submission_id}": {
+      "get": {
+        "summary": "Get submission"
+      }
+    },
+    "/submissions/{submission_id}/approve": {
+      "post": {
+        "summary": "Approve submission"
+      }
+    },
+    "/submissions/{submission_id}/reject": {
+      "post": {
+        "summary": "Reject submission"
+      }
+    },
+    "/submissions/{submission_id}/report": {
+      "post": {
+        "summary": "Report submission"
+      }
+    }
+  }
+}
+

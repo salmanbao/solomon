@@ -13,6 +13,7 @@ import (
 	"solomon/contexts/identity-access/authorization-service/ports"
 )
 
+// GrantRoleCommand contains transport-agnostic input for role assignment.
 type GrantRoleCommand struct {
 	IdempotencyKey string
 	UserID         string
@@ -22,12 +23,14 @@ type GrantRoleCommand struct {
 	ExpiresAt      *time.Time
 }
 
+// GrantRoleResult captures assignment/audit identifiers and replay status.
 type GrantRoleResult struct {
 	Assignment entities.RoleAssignment `json:"assignment"`
 	AuditLogID string                  `json:"audit_log_id"`
 	Replayed   bool                    `json:"replayed"`
 }
 
+// GrantRoleUseCase coordinates idempotent role assignment workflow.
 type GrantRoleUseCase struct {
 	Repository      ports.Repository
 	Idempotency     ports.IdempotencyStore
@@ -38,8 +41,17 @@ type GrantRoleUseCase struct {
 	Logger          *slog.Logger
 }
 
+// Execute validates command input, enforces idempotency, writes mutation, and stores replay payload.
 func (u GrantRoleUseCase) Execute(ctx context.Context, cmd GrantRoleCommand) (GrantRoleResult, error) {
 	logger := application.ResolveLogger(u.Logger)
+	logger.Info("grant role started",
+		"event", "authz_grant_role_started",
+		"module", "identity-access/authorization-service",
+		"layer", "application",
+		"user_id", cmd.UserID,
+		"admin_id", cmd.AdminID,
+		"role_id", cmd.RoleID,
+	)
 
 	if strings.TrimSpace(cmd.IdempotencyKey) == "" {
 		return GrantRoleResult{}, domainerrors.ErrIdempotencyKeyRequired
@@ -68,6 +80,15 @@ func (u GrantRoleUseCase) Execute(ctx context.Context, cmd GrantRoleCommand) (Gr
 		ExpiresAt: cmd.ExpiresAt,
 	})
 	if err != nil {
+		logger.Error("grant role request hash failed",
+			"event", "authz_grant_role_hash_failed",
+			"module", "identity-access/authorization-service",
+			"layer", "application",
+			"user_id", cmd.UserID,
+			"admin_id", cmd.AdminID,
+			"role_id", cmd.RoleID,
+			"error", err.Error(),
+		)
 		return GrantRoleResult{}, err
 	}
 
@@ -76,6 +97,15 @@ func (u GrantRoleUseCase) Execute(ctx context.Context, cmd GrantRoleCommand) (Gr
 
 	existing, found, err := u.Idempotency.GetRecord(ctx, idempotencyKey, now)
 	if err != nil {
+		logger.Error("grant role idempotency lookup failed",
+			"event", "authz_grant_role_idempotency_get_failed",
+			"module", "identity-access/authorization-service",
+			"layer", "application",
+			"user_id", cmd.UserID,
+			"admin_id", cmd.AdminID,
+			"role_id", cmd.RoleID,
+			"error", err.Error(),
+		)
 		return GrantRoleResult{}, err
 	}
 	if found {
@@ -84,9 +114,26 @@ func (u GrantRoleUseCase) Execute(ctx context.Context, cmd GrantRoleCommand) (Gr
 		}
 		var replay GrantRoleResult
 		if err := json.Unmarshal(existing.ResponsePayload, &replay); err != nil {
+			logger.Error("grant role replay decode failed",
+				"event", "authz_grant_role_replay_decode_failed",
+				"module", "identity-access/authorization-service",
+				"layer", "application",
+				"user_id", cmd.UserID,
+				"admin_id", cmd.AdminID,
+				"role_id", cmd.RoleID,
+				"error", err.Error(),
+			)
 			return GrantRoleResult{}, err
 		}
 		replay.Replayed = true
+		logger.Info("grant role replayed",
+			"event", "authz_grant_role_replayed",
+			"module", "identity-access/authorization-service",
+			"layer", "application",
+			"user_id", cmd.UserID,
+			"admin_id", cmd.AdminID,
+			"role_id", cmd.RoleID,
+		)
 		return replay, nil
 	}
 
@@ -115,6 +162,15 @@ func (u GrantRoleUseCase) Execute(ctx context.Context, cmd GrantRoleCommand) (Gr
 		ExpiresAt:    cmd.ExpiresAt,
 	})
 	if err != nil {
+		logger.Error("grant role write failed",
+			"event", "authz_grant_role_write_failed",
+			"module", "identity-access/authorization-service",
+			"layer", "application",
+			"user_id", cmd.UserID,
+			"admin_id", cmd.AdminID,
+			"role_id", cmd.RoleID,
+			"error", err.Error(),
+		)
 		return GrantRoleResult{}, err
 	}
 
@@ -134,6 +190,15 @@ func (u GrantRoleUseCase) Execute(ctx context.Context, cmd GrantRoleCommand) (Gr
 	}
 	responsePayload, err := json.Marshal(result)
 	if err != nil {
+		logger.Error("grant role response encode failed",
+			"event", "authz_grant_role_response_encode_failed",
+			"module", "identity-access/authorization-service",
+			"layer", "application",
+			"user_id", cmd.UserID,
+			"admin_id", cmd.AdminID,
+			"role_id", cmd.RoleID,
+			"error", err.Error(),
+		)
 		return GrantRoleResult{}, err
 	}
 
@@ -144,8 +209,27 @@ func (u GrantRoleUseCase) Execute(ctx context.Context, cmd GrantRoleCommand) (Gr
 		ResponsePayload: responsePayload,
 		ExpiresAt:       now.Add(u.idempotencyTTL()),
 	}); err != nil {
+		logger.Error("grant role idempotency save failed",
+			"event", "authz_grant_role_idempotency_put_failed",
+			"module", "identity-access/authorization-service",
+			"layer", "application",
+			"user_id", cmd.UserID,
+			"admin_id", cmd.AdminID,
+			"role_id", cmd.RoleID,
+			"error", err.Error(),
+		)
 		return GrantRoleResult{}, err
 	}
+
+	logger.Info("grant role completed",
+		"event", "authz_grant_role_completed",
+		"module", "identity-access/authorization-service",
+		"layer", "application",
+		"user_id", cmd.UserID,
+		"admin_id", cmd.AdminID,
+		"role_id", cmd.RoleID,
+		"assignment_id", result.Assignment.AssignmentID,
+	)
 
 	return result, nil
 }

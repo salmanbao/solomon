@@ -87,8 +87,23 @@ func (h Handler) ListClipsHandler(ctx context.Context, req httptransport.ListCli
 // @Failure 500 {object} httptransport.ErrorResponse
 // @Router /library/clips/{clip_id} [get]
 func (h Handler) GetClipHandler(ctx context.Context, clipID string) (httptransport.GetClipResponse, error) {
+	logger := application.ResolveLogger(h.Logger)
+	logger.Info("get clip request received",
+		"event", "http_get_clip_received",
+		"module", "campaign-editorial/content-library-marketplace",
+		"layer", "transport",
+		"clip_id", clipID,
+	)
+
 	result, err := h.GetClip.Execute(ctx, queries.GetClipQuery{ClipID: clipID})
 	if err != nil {
+		logger.Error("get clip request failed",
+			"event", "http_get_clip_failed",
+			"module", "campaign-editorial/content-library-marketplace",
+			"layer", "transport",
+			"clip_id", clipID,
+			"error", err.Error(),
+		)
 		return httptransport.GetClipResponse{}, err
 	}
 	return httptransport.GetClipResponse{
@@ -112,8 +127,23 @@ func (h Handler) GetClipHandler(ctx context.Context, clipID string) (httptranspo
 // @Failure 500 {object} httptransport.ErrorResponse
 // @Router /library/clips/{clip_id}/preview [get]
 func (h Handler) GetClipPreviewHandler(ctx context.Context, clipID string) (httptransport.GetClipPreviewResponse, error) {
+	logger := application.ResolveLogger(h.Logger)
+	logger.Info("get clip preview request received",
+		"event", "http_get_clip_preview_received",
+		"module", "campaign-editorial/content-library-marketplace",
+		"layer", "transport",
+		"clip_id", clipID,
+	)
+
 	result, err := h.GetPreview.Execute(ctx, queries.GetClipPreviewQuery{ClipID: clipID})
 	if err != nil {
+		logger.Error("get clip preview request failed",
+			"event", "http_get_clip_preview_failed",
+			"module", "campaign-editorial/content-library-marketplace",
+			"layer", "transport",
+			"clip_id", clipID,
+			"error", err.Error(),
+		)
 		return httptransport.GetClipPreviewResponse{}, err
 	}
 	return httptransport.GetClipPreviewResponse{
@@ -148,6 +178,15 @@ func (h Handler) ClaimClipHandler(
 	req httptransport.ClaimClipRequest,
 	idempotencyKey string,
 ) (httptransport.ClaimClipResponse, error) {
+	logger := application.ResolveLogger(h.Logger)
+	logger.Info("claim clip request received",
+		"event", "http_claim_clip_received",
+		"module", "campaign-editorial/content-library-marketplace",
+		"layer", "transport",
+		"clip_id", clipID,
+		"user_id", userID,
+	)
+
 	result, err := h.ClaimClip.Execute(ctx, commands.ClaimClipCommand{
 		ClipID:         clipID,
 		UserID:         userID,
@@ -155,6 +194,14 @@ func (h Handler) ClaimClipHandler(
 		IdempotencyKey: idempotencyKey,
 	})
 	if err != nil {
+		logger.Error("claim clip request failed",
+			"event", "http_claim_clip_failed",
+			"module", "campaign-editorial/content-library-marketplace",
+			"layer", "transport",
+			"clip_id", clipID,
+			"user_id", userID,
+			"error", err.Error(),
+		)
 		return httptransport.ClaimClipResponse{}, err
 	}
 	return httptransport.ClaimClipResponse{
@@ -193,6 +240,15 @@ func (h Handler) DownloadClipHandler(
 	ipAddress string,
 	userAgent string,
 ) (httptransport.DownloadClipResponse, error) {
+	logger := application.ResolveLogger(h.Logger)
+	logger.Info("download clip request received",
+		"event", "http_download_clip_received",
+		"module", "campaign-editorial/content-library-marketplace",
+		"layer", "transport",
+		"clip_id", clipID,
+		"user_id", userID,
+	)
+
 	result, err := h.DownloadClip.Execute(ctx, commands.DownloadClipCommand{
 		ClipID:         clipID,
 		UserID:         userID,
@@ -201,6 +257,14 @@ func (h Handler) DownloadClipHandler(
 		UserAgent:      userAgent,
 	})
 	if err != nil {
+		logger.Error("download clip request failed",
+			"event", "http_download_clip_failed",
+			"module", "campaign-editorial/content-library-marketplace",
+			"layer", "transport",
+			"clip_id", clipID,
+			"user_id", userID,
+			"error", err.Error(),
+		)
 		return httptransport.DownloadClipResponse{}, err
 	}
 	return httptransport.DownloadClipResponse{
@@ -224,8 +288,23 @@ func (h Handler) DownloadClipHandler(
 // @Failure 500 {object} httptransport.ErrorResponse
 // @Router /library/claims [get]
 func (h Handler) ListClaimsHandler(ctx context.Context, userID string) (httptransport.ListClaimsResponse, error) {
+	logger := application.ResolveLogger(h.Logger)
+	logger.Info("list claims request received",
+		"event", "http_list_claims_received",
+		"module", "campaign-editorial/content-library-marketplace",
+		"layer", "transport",
+		"user_id", userID,
+	)
+
 	result, err := h.ListClaims.Execute(ctx, queries.ListClaimsQuery{UserID: userID})
 	if err != nil {
+		logger.Error("list claims request failed",
+			"event", "http_list_claims_failed",
+			"module", "campaign-editorial/content-library-marketplace",
+			"layer", "transport",
+			"user_id", userID,
+			"error", err.Error(),
+		)
 		return httptransport.ListClaimsResponse{}, err
 	}
 

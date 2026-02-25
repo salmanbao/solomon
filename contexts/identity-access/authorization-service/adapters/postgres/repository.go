@@ -27,6 +27,7 @@ type Repository struct {
 	logger *slog.Logger
 }
 
+// NewRepository builds the GORM-backed authorization repository adapter.
 func NewRepository(db *gorm.DB, logger *slog.Logger) *Repository {
 	if logger == nil {
 		logger = slog.Default()
@@ -34,6 +35,7 @@ func NewRepository(db *gorm.DB, logger *slog.Logger) *Repository {
 	return &Repository{db: db, logger: logger}
 }
 
+// ListEffectivePermissions resolves active role + delegation permissions for a user.
 func (r *Repository) ListEffectivePermissions(ctx context.Context, userID string, now time.Time) ([]string, error) {
 	type permissionRow struct {
 		PermissionKey string `gorm:"column:permission_key"`
@@ -75,6 +77,7 @@ func (r *Repository) ListEffectivePermissions(ctx context.Context, userID string
 	return permissions, nil
 }
 
+// ListUserRoles returns role assignments used by role-management endpoints.
 func (r *Repository) ListUserRoles(ctx context.Context, userID string, now time.Time) ([]entities.RoleAssignment, error) {
 	var rows []roleAssignmentModel
 	if err := r.db.WithContext(ctx).
@@ -92,6 +95,7 @@ func (r *Repository) ListUserRoles(ctx context.Context, userID string, now time.
 	return items, nil
 }
 
+// GrantRole persists role assignment, audit log, and outbox row in one transaction.
 func (r *Repository) GrantRole(ctx context.Context, input ports.GrantRoleInput) (ports.RoleMutationResult, error) {
 	var result ports.RoleMutationResult
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -164,6 +168,7 @@ func (r *Repository) GrantRole(ctx context.Context, input ports.GrantRoleInput) 
 	return result, nil
 }
 
+// RevokeRole deactivates role assignment, writes audit, and appends outbox row.
 func (r *Repository) RevokeRole(ctx context.Context, input ports.RevokeRoleInput) (ports.RoleMutationResult, error) {
 	var result ports.RoleMutationResult
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -227,6 +232,7 @@ func (r *Repository) RevokeRole(ctx context.Context, input ports.RevokeRoleInput
 	return result, nil
 }
 
+// CreateDelegation persists delegation, writes audit, and appends outbox row.
 func (r *Repository) CreateDelegation(ctx context.Context, input ports.DelegationInput) (ports.DelegationMutationResult, error) {
 	var result ports.DelegationMutationResult
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -293,6 +299,7 @@ func (r *Repository) CreateDelegation(ctx context.Context, input ports.Delegatio
 	return result, nil
 }
 
+// GetRecord loads an idempotency record and evicts expired entries.
 func (r *Repository) GetRecord(ctx context.Context, key string, now time.Time) (ports.IdempotencyRecord, bool, error) {
 	var row idempotencyModel
 	err := r.db.WithContext(ctx).Where("key = ?", key).First(&row).Error
@@ -311,6 +318,7 @@ func (r *Repository) GetRecord(ctx context.Context, key string, now time.Time) (
 	return row.toPort(), true, nil
 }
 
+// PutRecord inserts a new idempotency record and checks request-hash collisions.
 func (r *Repository) PutRecord(ctx context.Context, record ports.IdempotencyRecord) error {
 	row := idempotencyFromPort(record)
 	createResult := r.db.WithContext(ctx).
@@ -336,6 +344,7 @@ func (r *Repository) PutRecord(ctx context.Context, record ports.IdempotencyReco
 	return nil
 }
 
+// ListPendingOutbox loads unsent outbox rows oldest-first.
 func (r *Repository) ListPendingOutbox(ctx context.Context, limit int) ([]ports.OutboxMessage, error) {
 	if limit <= 0 {
 		limit = 100
@@ -355,6 +364,7 @@ func (r *Repository) ListPendingOutbox(ctx context.Context, limit int) ([]ports.
 	return items, nil
 }
 
+// MarkOutboxPublished marks one outbox row as published.
 func (r *Repository) MarkOutboxPublished(ctx context.Context, outboxID string, publishedAt time.Time) error {
 	result := r.db.WithContext(ctx).
 		Model(&authzOutboxModel{}).
@@ -373,6 +383,7 @@ func (r *Repository) MarkOutboxPublished(ctx context.Context, outboxID string, p
 	return nil
 }
 
+// ReserveEvent inserts event dedupe record or validates duplicate payload hash.
 func (r *Repository) ReserveEvent(
 	ctx context.Context,
 	eventID string,
@@ -575,13 +586,14 @@ func buildPolicyChangedPayload(userID string, roleID string, action string) ([]b
 
 func buildOutboxMessage(outboxID string, eventType string, partitionKey string, payload []byte, at time.Time) (authzOutboxModel, error) {
 	event := ports.PolicyChangedEvent{
-		EventID:      outboxID,
-		EventType:    eventType,
-		OccurredAt:   at,
-		Source:       "authorization-service",
-		Schema:       1,
-		PartitionKey: partitionKey,
-		Data:         payload,
+		EventID:          outboxID,
+		EventType:        eventType,
+		OccurredAt:       at.UTC(),
+		SourceService:    "authorization-service",
+		SchemaVersion:    1,
+		PartitionKeyPath: "user_id",
+		PartitionKey:     partitionKey,
+		Data:             payload,
 	}
 	envelope, err := json.Marshal(event)
 	if err != nil {

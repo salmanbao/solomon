@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "campaign.created",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "source_service",
+    "schema_version",
+    "partition_key",
+    "data"
+  ],
+  "properties": {
+    "event_id": { "type": "string" },
+    "event_type": { "const": "campaign.created" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "source_service": { "type": "string" },
+    "schema_version": { "type": "string" },
+    "partition_key": { "type": "string" },
+    "data": {
+      "type": "object",
+      "required": ["campaign_id", "brand_id", "status"],
+      "properties": {
+        "campaign_id": { "type": "string" },
+        "brand_id": { "type": "string" },
+        "status": { "type": "string" }
+      }
+    }
+  }
+}
+

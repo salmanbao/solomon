@@ -4,11 +4,13 @@ import (
 	"context"
 	"log/slog"
 
+	application "solomon/contexts/identity-access/authorization-service/application"
 	"solomon/contexts/identity-access/authorization-service/application/commands"
 	"solomon/contexts/identity-access/authorization-service/application/queries"
 	"solomon/contexts/identity-access/authorization-service/transport/http"
 )
 
+// Handler maps HTTP DTOs to application commands/queries.
 type Handler struct {
 	CheckPermission queries.CheckPermissionUseCase
 	CheckBatch      queries.CheckPermissionsBatchUseCase
@@ -19,11 +21,21 @@ type Handler struct {
 	Logger          *slog.Logger
 }
 
+// CheckPermissionHandler evaluates one permission for one user.
 func (h Handler) CheckPermissionHandler(
 	ctx context.Context,
 	userID string,
 	request httptransport.CheckPermissionRequest,
 ) (httptransport.CheckPermissionResponse, error) {
+	logger := application.ResolveLogger(h.Logger)
+	logger.Debug("http authz check received",
+		"event", "authz_http_check_received",
+		"module", "identity-access/authorization-service",
+		"layer", "transport",
+		"user_id", userID,
+		"permission", request.Permission,
+	)
+
 	decision, err := h.CheckPermission.Execute(ctx, queries.CheckPermissionQuery{
 		UserID:       userID,
 		Permission:   request.Permission,
@@ -31,6 +43,14 @@ func (h Handler) CheckPermissionHandler(
 		ResourceID:   request.ResourceID,
 	})
 	if err != nil {
+		logger.Error("http authz check failed",
+			"event", "authz_http_check_failed",
+			"module", "identity-access/authorization-service",
+			"layer", "transport",
+			"user_id", userID,
+			"permission", request.Permission,
+			"error", err.Error(),
+		)
 		return httptransport.CheckPermissionResponse{}, err
 	}
 	return httptransport.CheckPermissionResponse{
@@ -43,16 +63,34 @@ func (h Handler) CheckPermissionHandler(
 	}, nil
 }
 
+// CheckBatchHandler evaluates multiple permissions in a single request.
 func (h Handler) CheckBatchHandler(
 	ctx context.Context,
 	userID string,
 	request httptransport.CheckBatchRequest,
 ) (httptransport.CheckBatchResponse, error) {
+	logger := application.ResolveLogger(h.Logger)
+	logger.Debug("http authz check batch received",
+		"event", "authz_http_check_batch_received",
+		"module", "identity-access/authorization-service",
+		"layer", "transport",
+		"user_id", userID,
+		"permission_count", len(request.Permissions),
+	)
+
 	decisions, err := h.CheckBatch.Execute(ctx, queries.CheckPermissionsBatchQuery{
 		UserID:      userID,
 		Permissions: request.Permissions,
 	})
 	if err != nil {
+		logger.Error("http authz check batch failed",
+			"event", "authz_http_check_batch_failed",
+			"module", "identity-access/authorization-service",
+			"layer", "transport",
+			"user_id", userID,
+			"permission_count", len(request.Permissions),
+			"error", err.Error(),
+		)
 		return httptransport.CheckBatchResponse{}, err
 	}
 
@@ -70,9 +108,25 @@ func (h Handler) CheckBatchHandler(
 	return httptransport.CheckBatchResponse{Results: items}, nil
 }
 
+// ListUserRolesHandler returns active and historical role assignments for a user.
 func (h Handler) ListUserRolesHandler(ctx context.Context, userID string) (httptransport.ListUserRolesResponse, error) {
+	logger := application.ResolveLogger(h.Logger)
+	logger.Info("http authz list roles received",
+		"event", "authz_http_list_roles_received",
+		"module", "identity-access/authorization-service",
+		"layer", "transport",
+		"user_id", userID,
+	)
+
 	roles, err := h.ListRoles.Execute(ctx, userID)
 	if err != nil {
+		logger.Error("http authz list roles failed",
+			"event", "authz_http_list_roles_failed",
+			"module", "identity-access/authorization-service",
+			"layer", "transport",
+			"user_id", userID,
+			"error", err.Error(),
+		)
 		return httptransport.ListUserRolesResponse{}, err
 	}
 
@@ -97,6 +151,7 @@ func (h Handler) ListUserRolesHandler(ctx context.Context, userID string) (httpt
 	}, nil
 }
 
+// GrantRoleHandler executes idempotent role assignment and returns command result DTO.
 func (h Handler) GrantRoleHandler(
 	ctx context.Context,
 	userID string,
@@ -104,6 +159,16 @@ func (h Handler) GrantRoleHandler(
 	idempotencyKey string,
 	request httptransport.GrantRoleRequest,
 ) (httptransport.GrantRoleResponse, error) {
+	logger := application.ResolveLogger(h.Logger)
+	logger.Info("http authz grant role received",
+		"event", "authz_http_grant_role_received",
+		"module", "identity-access/authorization-service",
+		"layer", "transport",
+		"user_id", userID,
+		"admin_id", adminID,
+		"role_id", request.RoleID,
+	)
+
 	result, err := h.GrantRole.Execute(ctx, commands.GrantRoleCommand{
 		IdempotencyKey: idempotencyKey,
 		UserID:         userID,
@@ -113,6 +178,15 @@ func (h Handler) GrantRoleHandler(
 		ExpiresAt:      request.ExpiresAt,
 	})
 	if err != nil {
+		logger.Error("http authz grant role failed",
+			"event", "authz_http_grant_role_failed",
+			"module", "identity-access/authorization-service",
+			"layer", "transport",
+			"user_id", userID,
+			"admin_id", adminID,
+			"role_id", request.RoleID,
+			"error", err.Error(),
+		)
 		return httptransport.GrantRoleResponse{}, err
 	}
 	return httptransport.GrantRoleResponse{
@@ -126,6 +200,7 @@ func (h Handler) GrantRoleHandler(
 	}, nil
 }
 
+// RevokeRoleHandler executes idempotent role revocation and returns command result DTO.
 func (h Handler) RevokeRoleHandler(
 	ctx context.Context,
 	userID string,
@@ -133,6 +208,16 @@ func (h Handler) RevokeRoleHandler(
 	idempotencyKey string,
 	request httptransport.RevokeRoleRequest,
 ) (httptransport.RevokeRoleResponse, error) {
+	logger := application.ResolveLogger(h.Logger)
+	logger.Info("http authz revoke role received",
+		"event", "authz_http_revoke_role_received",
+		"module", "identity-access/authorization-service",
+		"layer", "transport",
+		"user_id", userID,
+		"admin_id", adminID,
+		"role_id", request.RoleID,
+	)
+
 	result, err := h.RevokeRole.Execute(ctx, commands.RevokeRoleCommand{
 		IdempotencyKey: idempotencyKey,
 		UserID:         userID,
@@ -141,6 +226,15 @@ func (h Handler) RevokeRoleHandler(
 		Reason:         request.Reason,
 	})
 	if err != nil {
+		logger.Error("http authz revoke role failed",
+			"event", "authz_http_revoke_role_failed",
+			"module", "identity-access/authorization-service",
+			"layer", "transport",
+			"user_id", userID,
+			"admin_id", adminID,
+			"role_id", request.RoleID,
+			"error", err.Error(),
+		)
 		return httptransport.RevokeRoleResponse{}, err
 	}
 	return httptransport.RevokeRoleResponse{
@@ -152,11 +246,22 @@ func (h Handler) RevokeRoleHandler(
 	}, nil
 }
 
+// CreateDelegationHandler creates a temporary delegation between admins.
 func (h Handler) CreateDelegationHandler(
 	ctx context.Context,
 	idempotencyKey string,
 	request httptransport.CreateDelegationRequest,
 ) (httptransport.CreateDelegationResponse, error) {
+	logger := application.ResolveLogger(h.Logger)
+	logger.Info("http authz create delegation received",
+		"event", "authz_http_create_delegation_received",
+		"module", "identity-access/authorization-service",
+		"layer", "transport",
+		"from_admin_id", request.FromAdminID,
+		"to_admin_id", request.ToAdminID,
+		"role_id", request.RoleID,
+	)
+
 	result, err := h.DelegateRole.Execute(ctx, commands.CreateDelegationCommand{
 		IdempotencyKey: idempotencyKey,
 		FromAdminID:    request.FromAdminID,
@@ -166,6 +271,15 @@ func (h Handler) CreateDelegationHandler(
 		Reason:         request.Reason,
 	})
 	if err != nil {
+		logger.Error("http authz create delegation failed",
+			"event", "authz_http_create_delegation_failed",
+			"module", "identity-access/authorization-service",
+			"layer", "transport",
+			"from_admin_id", request.FromAdminID,
+			"to_admin_id", request.ToAdminID,
+			"role_id", request.RoleID,
+			"error", err.Error(),
+		)
 		return httptransport.CreateDelegationResponse{}, err
 	}
 	return httptransport.CreateDelegationResponse{

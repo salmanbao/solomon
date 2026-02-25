@@ -31,6 +31,12 @@ Code references:
   - handler annotations in `adapters/http/handler.go`
   - generated artifacts in `internal/platform/httpserver/docs`
   - UI route: `/swagger/index.html`
+- Stable versioned API contract artifact:
+  - `contracts/api/v1/content-library-marketplace.openapi.json`
+- Stable event payload contracts:
+  - `contracts/events/v1/distribution.claimed.schema.json`
+  - `contracts/events/v1/distribution.published.schema.json`
+  - `contracts/events/v1/distribution.failed.schema.json`
 
 ## Module Map
 

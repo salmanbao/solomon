@@ -1,0 +1,449 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Solomon monolith HTTP API",
+        "title": "Solomon API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/library/claims": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns claims for the authenticated user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-library-marketplace"
+                ],
+                "summary": "List influencer claims",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request correlation id",
+                        "name": "X-Request-Id",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ListClaimsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/library/clips": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns clip catalog with filters and cursor pagination.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-library-marketplace"
+                ],
+                "summary": "List marketplace clips",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request correlation id",
+                        "name": "X-Request-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Niche filter",
+                        "name": "niche",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Duration bucket: 0-15,16-30,31-60,60+",
+                        "name": "duration_bucket",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort: views_7d,votes_7d,engagement_rate",
+                        "name": "popularity_sort",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Clip status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor token",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (max 50)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ListClipsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/library/clips/{clip_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns one clip by id.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-library-marketplace"
+                ],
+                "summary": "Get clip details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request correlation id",
+                        "name": "X-Request-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Clip id",
+                        "name": "clip_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.GetClipResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/library/clips/{clip_id}/claim": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates an active claim with idempotency support.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-library-marketplace"
+                ],
+                "summary": "Claim a clip",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Request correlation id",
+                        "name": "X-Request-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Idempotency key",
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Clip id",
+                        "name": "clip_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Claim payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClaimClipRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClaimClipResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClaimClipRequest": {
+            "type": "object",
+            "properties": {
+                "request_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClaimClipResponse": {
+            "type": "object",
+            "properties": {
+                "claim_id": {
+                    "type": "string"
+                },
+                "clip_id": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "replayed": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClaimDTO": {
+            "type": "object",
+            "properties": {
+                "claim_id": {
+                    "type": "string"
+                },
+                "clip_id": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClipDTO": {
+            "type": "object",
+            "properties": {
+                "claim_limit": {
+                    "type": "integer"
+                },
+                "clip_id": {
+                    "type": "string"
+                },
+                "duration_seconds": {
+                    "type": "integer"
+                },
+                "exclusivity": {
+                    "type": "string"
+                },
+                "niche": {
+                    "type": "string"
+                },
+                "preview_url": {
+                    "type": "string"
+                },
+                "stats": {
+                    "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClipStatsDTO"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClipStatsDTO": {
+            "type": "object",
+            "properties": {
+                "engagement_rate": {
+                    "type": "number"
+                },
+                "views_7d": {
+                    "type": "integer"
+                },
+                "votes_7d": {
+                    "type": "integer"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.GetClipResponse": {
+            "type": "object",
+            "properties": {
+                "item": {
+                    "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClipDTO"
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ListClaimsResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClaimDTO"
+                    }
+                }
+            }
+        },
+        "solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ListClipsResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClipDTO"
+                    }
+                },
+                "next_cursor": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

@@ -43,11 +43,19 @@ type DownloadClipUseCase struct {
 }
 
 func (u DownloadClipUseCase) Execute(ctx context.Context, cmd DownloadClipCommand) (DownloadClipResult, error) {
+	logger := application.ResolveLogger(u.Logger)
+	logger.Info("clip download started",
+		"event", "content_marketplace_download_started",
+		"module", "campaign-editorial/content-library-marketplace",
+		"layer", "application",
+		"clip_id", cmd.ClipID,
+		"user_id", cmd.UserID,
+	)
+
 	if strings.TrimSpace(cmd.ClipID) == "" || strings.TrimSpace(cmd.UserID) == "" {
 		return DownloadClipResult{}, domainerrors.ErrInvalidClaimRequest
 	}
 
-	logger := application.ResolveLogger(u.Logger)
 	now := time.Now().UTC()
 	if u.Clock != nil {
 		now = u.Clock.Now().UTC()
@@ -55,6 +63,14 @@ func (u DownloadClipUseCase) Execute(ctx context.Context, cmd DownloadClipComman
 
 	clip, err := u.Clips.GetClip(ctx, cmd.ClipID)
 	if err != nil {
+		logger.Error("clip download failed loading clip",
+			"event", "content_marketplace_download_load_clip_failed",
+			"module", "campaign-editorial/content-library-marketplace",
+			"layer", "application",
+			"clip_id", cmd.ClipID,
+			"user_id", cmd.UserID,
+			"error", err.Error(),
+		)
 		return DownloadClipResult{}, err
 	}
 	if !clip.IsClaimable() {
@@ -62,6 +78,14 @@ func (u DownloadClipUseCase) Execute(ctx context.Context, cmd DownloadClipComman
 	}
 
 	if err := u.ensureActiveClaim(ctx, cmd.UserID, cmd.ClipID, now); err != nil {
+		logger.Warn("clip download rejected without active claim",
+			"event", "content_marketplace_download_claim_required",
+			"module", "campaign-editorial/content-library-marketplace",
+			"layer", "application",
+			"clip_id", cmd.ClipID,
+			"user_id", cmd.UserID,
+			"error", err.Error(),
+		)
 		return DownloadClipResult{}, err
 	}
 
@@ -70,6 +94,14 @@ func (u DownloadClipUseCase) Execute(ctx context.Context, cmd DownloadClipComman
 
 	record, found, err := u.Idempotency.Get(ctx, key, now)
 	if err != nil {
+		logger.Error("clip download idempotency lookup failed",
+			"event", "content_marketplace_download_idempotency_get_failed",
+			"module", "campaign-editorial/content-library-marketplace",
+			"layer", "application",
+			"clip_id", cmd.ClipID,
+			"user_id", cmd.UserID,
+			"error", err.Error(),
+		)
 		return DownloadClipResult{}, err
 	}
 	if found && record.RequestHash != requestHash {
@@ -79,10 +111,25 @@ func (u DownloadClipUseCase) Execute(ctx context.Context, cmd DownloadClipComman
 	limit := u.dailyLimit()
 	count, err := u.Downloads.CountUserClipDownloadsSince(ctx, cmd.UserID, cmd.ClipID, now.Add(-24*time.Hour))
 	if err != nil {
+		logger.Error("clip download count query failed",
+			"event", "content_marketplace_download_count_failed",
+			"module", "campaign-editorial/content-library-marketplace",
+			"layer", "application",
+			"clip_id", cmd.ClipID,
+			"user_id", cmd.UserID,
+			"error", err.Error(),
+		)
 		return DownloadClipResult{}, err
 	}
 
 	if found {
+		logger.Info("clip download replayed from idempotency",
+			"event", "content_marketplace_download_replayed",
+			"module", "campaign-editorial/content-library-marketplace",
+			"layer", "application",
+			"clip_id", cmd.ClipID,
+			"user_id", cmd.UserID,
+		)
 		return DownloadClipResult{
 			DownloadURL:        buildSignedDownloadURL(clip.DownloadAssetID, cmd.UserID, cmd.ClipID, now.Add(u.downloadTTL())),
 			ExpiresAt:          now.Add(u.downloadTTL()),
@@ -107,6 +154,14 @@ func (u DownloadClipUseCase) Execute(ctx context.Context, cmd DownloadClipComman
 		UserAgent:    strings.TrimSpace(cmd.UserAgent),
 		DownloadedAt: now,
 	}); err != nil {
+		logger.Error("clip download persistence failed",
+			"event", "content_marketplace_download_create_failed",
+			"module", "campaign-editorial/content-library-marketplace",
+			"layer", "application",
+			"clip_id", cmd.ClipID,
+			"user_id", cmd.UserID,
+			"error", err.Error(),
+		)
 		return DownloadClipResult{}, err
 	}
 
@@ -116,6 +171,14 @@ func (u DownloadClipUseCase) Execute(ctx context.Context, cmd DownloadClipComman
 		ClaimID:     downloadID,
 		ExpiresAt:   now.Add(u.idempotencyTTL()),
 	}); err != nil {
+		logger.Error("clip download idempotency save failed",
+			"event", "content_marketplace_download_idempotency_put_failed",
+			"module", "campaign-editorial/content-library-marketplace",
+			"layer", "application",
+			"clip_id", cmd.ClipID,
+			"user_id", cmd.UserID,
+			"error", err.Error(),
+		)
 		return DownloadClipResult{}, err
 	}
 

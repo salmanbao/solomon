@@ -9,6 +9,11 @@
 - Versioned shared schemas: `schemas/v{n}/`
 - Generated Go contract types only: `gen/...`
 
+Current implemented module contracts:
+- M09 API: `api/v1/content-library-marketplace.openapi.json`
+- M21 API: `api/v1/authorization-service.openapi.json`
+- M09/M21 event payloads: `events/v1/*.schema.json`
+
 ## What Must Not Live Here
 
 - Module-local transport DTOs used only inside a monolith module

@@ -15,6 +15,8 @@ import (
 	"github.com/google/uuid"
 )
 
+// Store is an in-memory adapter implementing repository/cache/idempotency ports.
+// It is intended for tests and local development wiring.
 type Store struct {
 	mu sync.RWMutex
 
@@ -43,6 +45,7 @@ type dedupEntry struct {
 	ExpiresAt   time.Time
 }
 
+// NewStore builds a deterministic in-memory adapter seeded with baseline roles.
 func NewStore() *Store {
 	roles := map[string]entities.Role{
 		"guest": {
@@ -87,6 +90,7 @@ func NewStore() *Store {
 	}
 }
 
+// ListEffectivePermissions resolves active assignment and delegation permissions.
 func (s *Store) ListEffectivePermissions(_ context.Context, userID string, now time.Time) ([]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -128,6 +132,7 @@ func (s *Store) ListEffectivePermissions(_ context.Context, userID string, now t
 	return items, nil
 }
 
+// ListUserRoles returns role assignments filtered by user identity.
 func (s *Store) ListUserRoles(_ context.Context, userID string, now time.Time) ([]entities.RoleAssignment, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

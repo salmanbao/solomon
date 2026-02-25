@@ -11,11 +11,13 @@ import (
 	"solomon/contexts/identity-access/authorization-service/ports"
 )
 
+// Module is the authorization-service composition root exposed to runtime wiring.
 type Module struct {
 	Handler httpadapter.Handler
 	Store   *memory.Store
 }
 
+// Dependencies captures all runtime ports/config required by NewModule.
 type Dependencies struct {
 	Repository         ports.Repository
 	Idempotency        ports.IdempotencyStore
@@ -27,6 +29,7 @@ type Dependencies struct {
 	Logger             *slog.Logger
 }
 
+// NewModule wires M21 use-cases and transport handler using explicit ports.
 func NewModule(deps Dependencies) Module {
 	checkPermission := queries.CheckPermissionUseCase{
 		Repository:         deps.Repository,
@@ -37,10 +40,12 @@ func NewModule(deps Dependencies) Module {
 	}
 	checkBatch := queries.CheckPermissionsBatchUseCase{
 		CheckPermission: checkPermission,
+		Logger:          deps.Logger,
 	}
 	listRoles := queries.ListUserRolesUseCase{
 		Repository: deps.Repository,
 		Clock:      deps.Clock,
+		Logger:     deps.Logger,
 	}
 	grantRole := commands.GrantRoleUseCase{
 		Repository:      deps.Repository,
@@ -66,6 +71,7 @@ func NewModule(deps Dependencies) Module {
 		IDGenerator:    deps.IDGenerator,
 		Clock:          deps.Clock,
 		IdempotencyTTL: deps.IdempotencyTTL,
+		Logger:         deps.Logger,
 	}
 
 	handler := httpadapter.Handler{
@@ -83,6 +89,7 @@ func NewModule(deps Dependencies) Module {
 	}
 }
 
+// NewInMemoryModule builds a development/testing module with in-memory adapters.
 func NewInMemoryModule(logger *slog.Logger) Module {
 	store := memory.NewStore()
 	module := NewModule(Dependencies{

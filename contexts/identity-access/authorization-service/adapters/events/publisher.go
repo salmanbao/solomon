@@ -13,6 +13,7 @@ type Publisher struct {
 	logger *slog.Logger
 }
 
+// NewPublisher constructs a logging publisher adapter.
 func NewPublisher(logger *slog.Logger) *Publisher {
 	if logger == nil {
 		logger = slog.Default()
@@ -20,6 +21,7 @@ func NewPublisher(logger *slog.Logger) *Publisher {
 	return &Publisher{logger: logger}
 }
 
+// PublishPolicyChanged emits a policy-changed event to the configured transport.
 func (p Publisher) PublishPolicyChanged(_ context.Context, event ports.PolicyChangedEvent) error {
 	p.logger.Info("policy changed event published",
 		"event", "authz_policy_changed_published",

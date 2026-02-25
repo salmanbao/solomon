@@ -1,0 +1,30 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Distribution Service API",
+    "version": "v1"
+  },
+  "paths": {
+    "/api/v1/distribution/items/{id}/overlays": {
+      "post": {
+        "summary": "Add overlay"
+      }
+    },
+    "/api/v1/distribution/items/{id}/preview": {
+      "get": {
+        "summary": "Preview distribution item"
+      }
+    },
+    "/api/v1/distribution/items/{id}/schedule": {
+      "post": {
+        "summary": "Schedule item"
+      }
+    },
+    "/api/v1/distribution/items/{id}/publish-multi": {
+      "post": {
+        "summary": "Publish to multiple platforms"
+      }
+    }
+  }
+}
+

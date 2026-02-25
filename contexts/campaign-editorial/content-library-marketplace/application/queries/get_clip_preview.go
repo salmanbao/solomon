@@ -29,11 +29,31 @@ type GetClipPreviewUseCase struct {
 
 func (u GetClipPreviewUseCase) Execute(ctx context.Context, query GetClipPreviewQuery) (GetClipPreviewResult, error) {
 	logger := application.ResolveLogger(u.Logger)
+	logger.Info("get clip preview started",
+		"event", "content_marketplace_preview_started",
+		"module", "campaign-editorial/content-library-marketplace",
+		"layer", "application",
+		"clip_id", query.ClipID,
+	)
+
 	clip, err := u.Clips.GetClip(ctx, query.ClipID)
 	if err != nil {
+		logger.Error("get clip preview failed loading clip",
+			"event", "content_marketplace_preview_load_clip_failed",
+			"module", "campaign-editorial/content-library-marketplace",
+			"layer", "application",
+			"clip_id", query.ClipID,
+			"error", err.Error(),
+		)
 		return GetClipPreviewResult{}, err
 	}
 	if !clip.IsClaimable() {
+		logger.Warn("get clip preview rejected unavailable clip",
+			"event", "content_marketplace_preview_unavailable",
+			"module", "campaign-editorial/content-library-marketplace",
+			"layer", "application",
+			"clip_id", query.ClipID,
+		)
 		return GetClipPreviewResult{}, domainerrors.ErrClipUnavailable
 	}
 

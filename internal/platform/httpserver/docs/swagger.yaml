@@ -1,0 +1,291 @@
+basePath: /
+definitions:
+  solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClaimClipRequest:
+    properties:
+      request_id:
+        type: string
+    type: object
+  solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClaimClipResponse:
+    properties:
+      claim_id:
+        type: string
+      clip_id:
+        type: string
+      expires_at:
+        type: string
+      replayed:
+        type: boolean
+      status:
+        type: string
+    type: object
+  solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClaimDTO:
+    properties:
+      claim_id:
+        type: string
+      clip_id:
+        type: string
+      expires_at:
+        type: string
+      status:
+        type: string
+    type: object
+  solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClipDTO:
+    properties:
+      claim_limit:
+        type: integer
+      clip_id:
+        type: string
+      duration_seconds:
+        type: integer
+      exclusivity:
+        type: string
+      niche:
+        type: string
+      preview_url:
+        type: string
+      stats:
+        $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClipStatsDTO'
+      title:
+        type: string
+    type: object
+  solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClipStatsDTO:
+    properties:
+      engagement_rate:
+        type: number
+      views_7d:
+        type: integer
+      votes_7d:
+        type: integer
+    type: object
+  solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+    type: object
+  solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.GetClipResponse:
+    properties:
+      item:
+        $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClipDTO'
+    type: object
+  solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ListClaimsResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClaimDTO'
+        type: array
+    type: object
+  solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ListClipsResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClipDTO'
+        type: array
+      next_cursor:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: Solomon monolith HTTP API
+  title: Solomon API
+  version: "1.0"
+paths:
+  /library/claims:
+    get:
+      consumes:
+      - application/json
+      description: Returns claims for the authenticated user.
+      parameters:
+      - description: Request correlation id
+        in: header
+        name: X-Request-Id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ListClaimsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List influencer claims
+      tags:
+      - content-library-marketplace
+  /library/clips:
+    get:
+      consumes:
+      - application/json
+      description: Returns clip catalog with filters and cursor pagination.
+      parameters:
+      - description: Request correlation id
+        in: header
+        name: X-Request-Id
+        required: true
+        type: string
+      - collectionFormat: csv
+        description: Niche filter
+        in: query
+        items:
+          type: string
+        name: niche
+        type: array
+      - description: 'Duration bucket: 0-15,16-30,31-60,60+'
+        in: query
+        name: duration_bucket
+        type: string
+      - description: 'Sort: views_7d,votes_7d,engagement_rate'
+        in: query
+        name: popularity_sort
+        type: string
+      - description: Clip status
+        in: query
+        name: status
+        type: string
+      - description: Cursor token
+        in: query
+        name: cursor
+        type: string
+      - description: Page size (max 50)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ListClipsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List marketplace clips
+      tags:
+      - content-library-marketplace
+  /library/clips/{clip_id}:
+    get:
+      consumes:
+      - application/json
+      description: Returns one clip by id.
+      parameters:
+      - description: Request correlation id
+        in: header
+        name: X-Request-Id
+        required: true
+        type: string
+      - description: Clip id
+        in: path
+        name: clip_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.GetClipResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get clip details
+      tags:
+      - content-library-marketplace
+  /library/clips/{clip_id}/claim:
+    post:
+      consumes:
+      - application/json
+      description: Creates an active claim with idempotency support.
+      parameters:
+      - description: Request correlation id
+        in: header
+        name: X-Request-Id
+        required: true
+        type: string
+      - description: Idempotency key
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Clip id
+        in: path
+        name: clip_id
+        required: true
+        type: string
+      - description: Claim payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClaimClipRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ClaimClipResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/solomon_contexts_campaign-editorial_content-library-marketplace_transport_http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Claim a clip
+      tags:
+      - content-library-marketplace
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

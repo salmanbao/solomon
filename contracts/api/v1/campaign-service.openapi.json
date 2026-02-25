@@ -1,0 +1,51 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Campaign Service API",
+    "version": "v1"
+  },
+  "paths": {
+    "/v1/campaigns": {
+      "post": {
+        "summary": "Create campaign"
+      },
+      "get": {
+        "summary": "List campaigns"
+      }
+    },
+    "/v1/campaigns/{campaign_id}": {
+      "get": {
+        "summary": "Get campaign"
+      },
+      "put": {
+        "summary": "Update campaign"
+      }
+    },
+    "/v1/campaigns/{campaign_id}/launch": {
+      "post": {
+        "summary": "Launch campaign"
+      }
+    },
+    "/v1/campaigns/{campaign_id}/pause": {
+      "post": {
+        "summary": "Pause campaign"
+      }
+    },
+    "/v1/campaigns/{campaign_id}/resume": {
+      "post": {
+        "summary": "Resume campaign"
+      }
+    },
+    "/v1/campaigns/{campaign_id}/complete": {
+      "post": {
+        "summary": "Complete campaign"
+      }
+    },
+    "/v1/campaigns/{campaign_id}/budget/increase": {
+      "post": {
+        "summary": "Increase budget"
+      }
+    }
+  }
+}
+

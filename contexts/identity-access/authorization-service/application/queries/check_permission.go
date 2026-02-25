@@ -13,6 +13,7 @@ import (
 	"solomon/contexts/identity-access/authorization-service/ports"
 )
 
+// CheckPermissionQuery is the request model for single-permission evaluation.
 type CheckPermissionQuery struct {
 	UserID       string
 	Permission   string
@@ -20,6 +21,7 @@ type CheckPermissionQuery struct {
 	ResourceID   string
 }
 
+// CheckPermissionUseCase orchestrates cache-first permission evaluation.
 type CheckPermissionUseCase struct {
 	Repository         ports.Repository
 	PermissionCache    ports.PermissionCache
@@ -28,6 +30,7 @@ type CheckPermissionUseCase struct {
 	Logger             *slog.Logger
 }
 
+// Execute evaluates a permission and returns deny-by-default on lookup failures.
 func (u CheckPermissionUseCase) Execute(ctx context.Context, query CheckPermissionQuery) (entities.PermissionDecision, error) {
 	if strings.TrimSpace(query.UserID) == "" {
 		return entities.PermissionDecision{}, domainerrors.ErrInvalidUserID
@@ -38,6 +41,15 @@ func (u CheckPermissionUseCase) Execute(ctx context.Context, query CheckPermissi
 
 	logger := application.ResolveLogger(u.Logger)
 	now := u.now()
+	logger.Debug("check permission started",
+		"event", "authz_check_started",
+		"module", "identity-access/authorization-service",
+		"layer", "application",
+		"user_id", query.UserID,
+		"permission", query.Permission,
+		"resource_type", query.ResourceType,
+		"resource_id", query.ResourceID,
+	)
 
 	permissions, cacheHit, err := u.loadPermissions(ctx, query.UserID, now)
 	if err != nil {
@@ -63,6 +75,27 @@ func (u CheckPermissionUseCase) Execute(ctx context.Context, query CheckPermissi
 	reason := "permission_granted"
 	if !allowed {
 		reason = "permission_missing"
+		logger.Warn("check permission denied",
+			"event", "authz_check_denied",
+			"module", "identity-access/authorization-service",
+			"layer", "application",
+			"user_id", query.UserID,
+			"permission", query.Permission,
+			"resource_type", query.ResourceType,
+			"resource_id", query.ResourceID,
+			"cache_hit", cacheHit,
+		)
+	} else {
+		logger.Debug("check permission allowed",
+			"event", "authz_check_allowed",
+			"module", "identity-access/authorization-service",
+			"layer", "application",
+			"user_id", query.UserID,
+			"permission", query.Permission,
+			"resource_type", query.ResourceType,
+			"resource_id", query.ResourceID,
+			"cache_hit", cacheHit,
+		)
 	}
 
 	return entities.PermissionDecision{

@@ -2,6 +2,7 @@ package httptransport
 
 import "time"
 
+// CheckPermissionRequest is the request body for single-permission evaluation.
 type CheckPermissionRequest struct {
 	UserID       string `json:"user_id,omitempty"`
 	Permission   string `json:"permission"`
@@ -9,11 +10,13 @@ type CheckPermissionRequest struct {
 	ResourceID   string `json:"resource_id,omitempty"`
 }
 
+// CheckBatchRequest is the request body for multi-permission evaluation.
 type CheckBatchRequest struct {
 	UserID      string   `json:"user_id,omitempty"`
 	Permissions []string `json:"permissions"`
 }
 
+// CheckPermissionResponse describes one permission decision.
 type CheckPermissionResponse struct {
 	UserID     string    `json:"user_id"`
 	Permission string    `json:"permission"`
