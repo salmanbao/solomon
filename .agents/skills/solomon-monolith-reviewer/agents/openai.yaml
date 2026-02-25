@@ -1,0 +1,4 @@
+interface:
+  display_name: "Solomon Monolith Reviewer"
+  short_description: "Review Solomon monolith code for defects and regressions."
+  default_prompt: "Review Solomon monolith changes with focus on bugs, regressions, contract drift, and ownership violations."

@@ -1,0 +1,31 @@
+run:
+  timeout: 5m
+
+linters:
+  disable-all: true
+  enable:
+    - depguard
+
+linters-settings:
+  depguard:
+    rules:
+      domain-runtime-boundary:
+        files:
+          - ".*/contexts/[^/]+/[^/]+/domain/.*\\.go"
+        deny:
+          - pkg: "solomon/internal"
+            desc: "domain must not import runtime internals"
+          - pkg: "solomon/integrations"
+            desc: "domain must not call integrations directly"
+          - pkg: "solomon/platform"
+            desc: "top-level platform is not a valid import surface"
+      application-runtime-boundary:
+        files:
+          - ".*/contexts/[^/]+/[^/]+/application/.*\\.go"
+        deny:
+          - pkg: "solomon/internal"
+            desc: "application must not import runtime internals"
+          - pkg: "solomon/integrations"
+            desc: "application must not call integrations directly"
+          - pkg: "solomon/platform"
+            desc: "top-level platform is not a valid import surface"

@@ -1,8 +1,8 @@
 package entities
 
-// Role is a core authorization aggregate.
+// Role models a permission bundle that can be assigned to users.
 type Role struct {
 	RoleID      string   `json:"role_id"`
-	Name        string   `json:"name"`
+	RoleName    string   `json:"role_name"`
 	Permissions []string `json:"permissions"`
 }

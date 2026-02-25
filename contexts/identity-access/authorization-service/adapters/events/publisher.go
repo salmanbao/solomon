@@ -1,14 +1,33 @@
 package events
 
-import "context"
+import (
+	"context"
+	"log/slog"
 
-// Publisher adapter for domain events.
-// Recommended: write to outbox table and let worker relay publish.
-type Publisher struct{}
+	"solomon/contexts/identity-access/authorization-service/ports"
+)
 
-func NewPublisher() *Publisher { return &Publisher{} }
+// Publisher is a placeholder policy-change event publisher.
+// It is intentionally minimal while messaging runtime integration is completed.
+type Publisher struct {
+	logger *slog.Logger
+}
 
-func (p Publisher) PublishRoleAssigned(_ context.Context, _ string, _ string) error {
-	// TODO: enqueue role assignment event.
+func NewPublisher(logger *slog.Logger) *Publisher {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &Publisher{logger: logger}
+}
+
+func (p Publisher) PublishPolicyChanged(_ context.Context, event ports.PolicyChangedEvent) error {
+	p.logger.Info("policy changed event published",
+		"event", "authz_policy_changed_published",
+		"module", "identity-access/authorization-service",
+		"layer", "adapter",
+		"event_id", event.EventID,
+		"event_type", event.EventType,
+		"partition_key", event.PartitionKey,
+	)
 	return nil
 }

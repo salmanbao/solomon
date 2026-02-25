@@ -1,0 +1,4 @@
+interface:
+  display_name: "Solomon Structured Logging Enforcer"
+  short_description: "Enforce structured logging in changed module files."
+  default_prompt: "Use $solomon-structured-logging-enforcer to add structured logs in all changed or newly added module files."

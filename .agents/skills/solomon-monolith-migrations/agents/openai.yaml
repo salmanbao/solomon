@@ -1,0 +1,4 @@
+interface:
+  display_name: "Solomon Monolith Migrations"
+  short_description: "Design safe monolith schema changes and rollouts."
+  default_prompt: "Design and implement safe Solomon schema migrations aligned with canonical ownership and backward-compatible rollout rules."

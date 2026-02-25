@@ -1,10 +1,8 @@
 package services
 
-import "solomon/contexts/identity-access/authorization-service/domain/entities"
-
-// PolicyEngine evaluates whether a role grants a permission.
-func PolicyEngine(role entities.Role, permission string) bool {
-	for _, p := range role.Permissions {
+// GrantsPermission returns true when the permission exists in the effective set.
+func GrantsPermission(permissions []string, permission string) bool {
+	for _, p := range permissions {
 		if p == permission {
 			return true
 		}

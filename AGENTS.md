@@ -2,7 +2,7 @@
 name: "Solomon Monolith Implementation Guide"
 description: "Repository-specific instructions for implementing ViralForge monolith services inside Solomon."
 category: "Backend Service"
-lastUpdated: "2026-02-17"
+lastUpdated: "2026-02-23"
 ---
 
 # Solomon Monolith Implementation Guide
@@ -16,9 +16,9 @@ This guide defines how to implement modules in Solomon's modular monolith while 
 
 ### In scope (`solomon`)
 - Monolith services and modules under `solomon/contexts`
-- Shared monolith platform code under `solomon/internal` and `solomon/platform`
-- App entrypoints under `solomon/cmd` and packaging under `solomon/apps`
-- Contracts owned by monolith boundary under `solomon/contracts`
+- Shared monolith platform code under `solomon/internal/platform`
+- App entrypoints under `solomon/cmd` and deployment packaging under `solomon/deploy`
+- Contracts module under `solomon/contracts` (separate Go module)
 
 ### Out of scope (`solomon`)
 - Services classified as `architecture: microservice` (must stay in `mesh`)
@@ -44,14 +44,14 @@ Always read and follow these before implementation:
 
 ### Module structure
 Each monolith module follows:
-- `domain -> application -> ports -> adapters -> contracts`
+- `domain -> application -> ports -> adapters -> transport`
 
 Path pattern:
 - `solomon/contexts/<context>/<service>/domain`
 - `solomon/contexts/<context>/<service>/application`
 - `solomon/contexts/<context>/<service>/ports`
 - `solomon/contexts/<context>/<service>/adapters`
-- `solomon/contexts/<context>/<service>/contracts`
+- `solomon/contexts/<context>/<service>/transport`
 
 Optional:
 - `solomon/contexts/<context>/<service>/module.go` for module wiring/registration
@@ -81,6 +81,8 @@ Optional:
 - Do not introduce hidden dependencies between contexts.
 - For async workflows, prefer outbox/event patterns defined in canonical specs.
 - Keep cross-context contracts explicit and version-stable.
+- Do not build centralized microservice client packages under `solomon/integrations`.
+- Module outbound microservice adapters must be owned inside each module's `adapters/`.
 
 ## Implementation Workflow
 1. Confirm target service is `architecture: monolith`.

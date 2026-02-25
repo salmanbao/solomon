@@ -1,0 +1,4 @@
+interface:
+  display_name: "Solomon Extraction Readiness"
+  short_description: "Keep monolith modules extraction-ready and loosely coupled."
+  default_prompt: "Refactor Solomon monolith modules toward extraction-ready boundaries, explicit contracts, and minimal coupling."

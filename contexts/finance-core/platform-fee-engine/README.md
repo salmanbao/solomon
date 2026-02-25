@@ -7,4 +7,4 @@ Module scaffold for Solomon monolith.
 - application/: use cases, command/query handlers, orchestration
 - ports/: repository, event, and client interfaces
 - adapters/: DB, HTTP/gRPC, event bus, cache implementations
-- contracts/: request/response/event contracts local to this module
+- transport/: module-private transport DTOs and event payload mappers

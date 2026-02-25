@@ -1,0 +1,4 @@
+interface:
+  display_name: "Solomon Swagger Integrator"
+  short_description: "Document endpoints and wire Swagger UI into routes."
+  default_prompt: "Use $solomon-swagger-integrator to add endpoint Swagger docs and wire Swagger UI into the Solomon router."

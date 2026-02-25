@@ -1,10 +1,19 @@
 # Authorization Service
 
-Module scaffold for Solomon monolith.
+M21 module for RBAC authorization flows.
 
-## Structure
-- domain/: entities, value objects, domain services, invariants
-- application/: use cases, command/query handlers, orchestration
-- ports/: repository, event, and client interfaces
-- adapters/: DB, HTTP/gRPC, event bus, cache implementations
-- contracts/: request/response/event contracts local to this module
+## Implemented baseline
+- Permission check and batch check use-cases with deny-by-default behavior.
+- Role listing, grant, and revoke command flows.
+- Delegation creation with expiry validation.
+- Idempotency handling for mutating commands.
+- Transactional outbox persistence contracts and relay worker primitive.
+- GORM PostgreSQL adapter and deterministic in-memory adapter.
+
+## HTTP routes
+- `POST /api/authz/v1/check`
+- `POST /api/authz/v1/check-batch`
+- `GET /api/authz/v1/users/{user_id}/roles`
+- `POST /api/authz/v1/users/{user_id}/roles/grant`
+- `POST /api/authz/v1/users/{user_id}/roles/revoke`
+- `POST /api/authz/v1/delegations`

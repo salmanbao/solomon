@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "solomon/contracts/events/v1/authorization.role_assigned.schema.json",
+  "title": "authorization.role_assigned",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "user_id",
+    "role_id"
+  ],
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "role_id": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

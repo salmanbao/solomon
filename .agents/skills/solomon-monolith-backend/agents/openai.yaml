@@ -1,0 +1,4 @@
+interface:
+  display_name: "Solomon Monolith Backend"
+  short_description: "Build ViralForge monolith services in Go for Solomon."
+  default_prompt: "Implement or review monolith services in Solomon using canonical ViralForge contracts and Go module layering."

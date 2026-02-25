@@ -1,0 +1,4 @@
+interface:
+  display_name: "Solomon Dev Documentation"
+  short_description: "Write Solomon code docs and decision rationale for developers."
+  default_prompt: "Document Solomon code behavior, architecture, and decision rationale for developer understanding and future changes."

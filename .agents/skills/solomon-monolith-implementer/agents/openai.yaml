@@ -1,0 +1,4 @@
+interface:
+  display_name: "Solomon Monolith Implementer"
+  short_description: "Implement Solomon monolith services in Go."
+  default_prompt: "Implement Solomon monolith modules in Go using canonical ownership, dependency, and reliability contracts."

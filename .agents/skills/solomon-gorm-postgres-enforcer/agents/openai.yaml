@@ -1,0 +1,4 @@
+interface:
+  display_name: "Solomon GORM Postgres Enforcer"
+  short_description: "Enforce GORM-only Postgres access in Solomon modules."
+  default_prompt: "Ensure PostgreSQL data access in Solomon uses GORM patterns and remove raw SQL query usage."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Solomon Monolith Contracts"
+  short_description: "Manage API and event contracts for monolith services."
+  default_prompt: "Define and evolve Solomon monolith API and event contracts with compatibility, envelope, and dependency guarantees."
