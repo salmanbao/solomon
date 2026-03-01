@@ -37,6 +37,7 @@ import (
 	authorization "solomon/contexts/identity-access/authorization-service"
 	authzerrors "solomon/contexts/identity-access/authorization-service/domain/errors"
 	authzhttp "solomon/contexts/identity-access/authorization-service/transport/http"
+	onboardingservice "solomon/contexts/identity-access/onboarding-service"
 	superadmindashboard "solomon/contexts/internal-ops/super-admin-dashboard"
 	superadmindomainerrors "solomon/contexts/internal-ops/super-admin-dashboard/domain/errors"
 	superadminhttp "solomon/contexts/internal-ops/super-admin-dashboard/transport/http"
@@ -61,6 +62,7 @@ type Server struct {
 	communityHealth communityhealthservice.Module
 	product         productservice.Module
 	subscription    subscriptionservice.Module
+	onboarding      onboardingservice.Module
 	superAdmin      superadmindashboard.Module
 	teamManagement  teammanagementservice.Module
 }
@@ -95,6 +97,7 @@ func New(
 		communityHealth: communityhealthservice.NewInMemoryModule(logger),
 		product:         productservice.NewInMemoryModule(logger),
 		subscription:    subscriptionservice.NewInMemoryModule(logger),
+		onboarding:      onboardingservice.NewInMemoryModule(logger),
 		superAdmin:      superadmindashboard.NewInMemoryModule(logger),
 		teamManagement:  teammanagementservice.NewInMemoryModule(logger),
 	}
@@ -218,6 +221,14 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/v1/subscriptions", s.handleSubscriptionCreate)
 	s.mux.HandleFunc("POST /api/v1/subscriptions/{subscription_id}/change-plan", s.handleSubscriptionChangePlan)
 	s.mux.HandleFunc("POST /api/v1/subscriptions/{subscription_id}/cancel", s.handleSubscriptionCancel)
+
+	// M22
+	s.mux.HandleFunc("GET /api/onboarding/v1/flow", s.handleOnboardingGetFlow)
+	s.mux.HandleFunc("POST /api/onboarding/v1/steps/{step_key}/complete", s.handleOnboardingCompleteStep)
+	s.mux.HandleFunc("POST /api/onboarding/v1/skip", s.handleOnboardingSkip)
+	s.mux.HandleFunc("POST /api/onboarding/v1/resume", s.handleOnboardingResume)
+	s.mux.HandleFunc("GET /api/onboarding/v1/admin/flows", s.handleOnboardingAdminFlows)
+	s.mux.HandleFunc("POST /api/onboarding/v1/internal/events/user-registered", s.handleOnboardingUserRegisteredEvent)
 
 	// M87
 	s.mux.HandleFunc("POST /teams", s.handleTeamCreate)
