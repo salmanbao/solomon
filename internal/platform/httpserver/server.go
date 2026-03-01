@@ -33,6 +33,7 @@ import (
 	productservice "solomon/contexts/community-experience/product-service"
 	productdomainerrors "solomon/contexts/community-experience/product-service/domain/errors"
 	producthttp "solomon/contexts/community-experience/product-service/transport/http"
+	reputationservice "solomon/contexts/community-experience/reputation-service"
 	storefrontservice "solomon/contexts/community-experience/storefront-service"
 	subscriptionservice "solomon/contexts/community-experience/subscription-service"
 	authorization "solomon/contexts/identity-access/authorization-service"
@@ -60,6 +61,7 @@ type Server struct {
 	distribution    distributionservice.Module
 	voting          votingengine.Module
 	chat            chatservice.Module
+	reputation      reputationservice.Module
 	communityHealth communityhealthservice.Module
 	product         productservice.Module
 	storefront      storefrontservice.Module
@@ -96,6 +98,7 @@ func New(
 		distribution:    distributionModule,
 		voting:          votingModule,
 		chat:            chatservice.NewInMemoryModule(logger),
+		reputation:      reputationservice.NewInMemoryModule(logger),
 		communityHealth: communityhealthservice.NewInMemoryModule(logger),
 		product:         productservice.NewInMemoryModule(logger),
 		storefront:      storefrontservice.NewInMemoryModule(logger),
@@ -229,6 +232,10 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/v1/community-health/{server_id}/health-score", s.handleCommunityHealthGetScore)
 	s.mux.HandleFunc("GET /api/v1/community-health/{server_id}/user-risk/{user_id}", s.handleCommunityHealthGetUserRisk)
 
+	// M48
+	s.mux.HandleFunc("GET /api/v1/reputation/user/{user_id}", s.handleReputationGetUser)
+	s.mux.HandleFunc("GET /api/v1/reputation/leaderboard", s.handleReputationLeaderboard)
+
 	// M61
 	s.mux.HandleFunc("POST /api/v1/subscriptions", s.handleSubscriptionCreate)
 	s.mux.HandleFunc("POST /api/v1/subscriptions/{subscription_id}/change-plan", s.handleSubscriptionChangePlan)
@@ -356,6 +363,22 @@ func resolveAuthzUserID(bodyUserID string, r *http.Request) string {
 		return fromHeader
 	}
 	return strings.TrimSpace(r.Header.Get("X-Subject-Id"))
+}
+
+func requireAuthzAuthorization(w http.ResponseWriter, r *http.Request) bool {
+	if strings.TrimSpace(r.Header.Get("Authorization")) == "" {
+		writeAuthzError(w, http.StatusUnauthorized, "unauthorized", "Authorization header is required")
+		return false
+	}
+	return true
+}
+
+func requireAuthzRequestID(w http.ResponseWriter, r *http.Request) bool {
+	if strings.TrimSpace(r.Header.Get("X-Request-Id")) == "" {
+		writeAuthzError(w, http.StatusBadRequest, "request_id_required", "X-Request-Id header is required")
+		return false
+	}
+	return true
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {
@@ -1017,6 +1040,9 @@ func (s *Server) handleDownloadClip(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAuthzCheck(w http.ResponseWriter, r *http.Request) {
+	if !requireAuthzAuthorization(w, r) || !requireAuthzRequestID(w, r) {
+		return
+	}
 	var req authzhttp.CheckPermissionRequest
 	if !s.decodeJSON(w, r, &req, writeAuthzError) {
 		return
@@ -1031,6 +1057,9 @@ func (s *Server) handleAuthzCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAuthzCheckBatch(w http.ResponseWriter, r *http.Request) {
+	if !requireAuthzAuthorization(w, r) || !requireAuthzRequestID(w, r) {
+		return
+	}
 	var req authzhttp.CheckBatchRequest
 	if !s.decodeJSON(w, r, &req, writeAuthzError) {
 		return
@@ -1045,6 +1074,9 @@ func (s *Server) handleAuthzCheckBatch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAuthzListUserRoles(w http.ResponseWriter, r *http.Request) {
+	if !requireAuthzAuthorization(w, r) || !requireAuthzRequestID(w, r) {
+		return
+	}
 	resp, err := s.authorization.Handler.ListUserRolesHandler(r.Context(), r.PathValue("user_id"))
 	if err != nil {
 		writeAuthzDomainError(w, err)
@@ -1054,6 +1086,9 @@ func (s *Server) handleAuthzListUserRoles(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleAuthzGrantRole(w http.ResponseWriter, r *http.Request) {
+	if !requireAuthzAuthorization(w, r) || !requireAuthzRequestID(w, r) {
+		return
+	}
 	userID := r.PathValue("user_id")
 	adminID := getUserID(r)
 	if strings.TrimSpace(adminID) == "" {
@@ -1078,6 +1113,9 @@ func (s *Server) handleAuthzGrantRole(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAuthzRevokeRole(w http.ResponseWriter, r *http.Request) {
+	if !requireAuthzAuthorization(w, r) || !requireAuthzRequestID(w, r) {
+		return
+	}
 	userID := r.PathValue("user_id")
 	adminID := getUserID(r)
 	if strings.TrimSpace(adminID) == "" {
@@ -1102,6 +1140,9 @@ func (s *Server) handleAuthzRevokeRole(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAuthzCreateDelegation(w http.ResponseWriter, r *http.Request) {
+	if !requireAuthzAuthorization(w, r) || !requireAuthzRequestID(w, r) {
+		return
+	}
 	var req authzhttp.CreateDelegationRequest
 	if !s.decodeJSON(w, r, &req, writeAuthzError) {
 		return

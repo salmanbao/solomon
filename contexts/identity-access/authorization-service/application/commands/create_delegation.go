@@ -64,7 +64,8 @@ func (u CreateDelegationUseCase) Execute(ctx context.Context, cmd CreateDelegati
 	if cmd.FromAdminID == cmd.ToAdminID {
 		return CreateDelegationResult{}, domainerrors.ErrInvalidDelegation
 	}
-	if !cmd.ExpiresAt.After(u.now()) {
+	now := u.now()
+	if !cmd.ExpiresAt.After(now) {
 		return CreateDelegationResult{}, domainerrors.ErrInvalidDelegation
 	}
 
@@ -86,7 +87,6 @@ func (u CreateDelegationUseCase) Execute(ctx context.Context, cmd CreateDelegati
 	}
 
 	idempotencyKey := "authz_idempotency:" + cmd.IdempotencyKey
-	now := u.now()
 	existing, found, err := u.Idempotency.GetRecord(ctx, idempotencyKey, now)
 	if err != nil {
 		logger.Error("create delegation idempotency lookup failed",
@@ -125,6 +125,10 @@ func (u CreateDelegationUseCase) Execute(ctx context.Context, cmd CreateDelegati
 			"role_id", cmd.RoleID,
 		)
 		return replay, nil
+	}
+
+	if err := ensureActorPermission(ctx, u.Repository, cmd.FromAdminID, "role.delegate", now); err != nil {
+		return CreateDelegationResult{}, err
 	}
 
 	delegationID, err := u.IDGenerator.NewID(ctx)

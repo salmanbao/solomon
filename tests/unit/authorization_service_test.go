@@ -160,3 +160,63 @@ func TestAuthorizationDelegationRequiresFutureExpiry(t *testing.T) {
 		t.Fatalf("expected invalid delegation, got %v", err)
 	}
 }
+
+func TestAuthorizationGrantRoleRequiresAdminPermission(t *testing.T) {
+	module := authorization.NewInMemoryModule(nil)
+
+	_, err := module.Handler.GrantRoleHandler(
+		context.Background(),
+		"user-5",
+		"user-without-admin-role",
+		"idem-grant-no-admin-perm",
+		httptransport.GrantRoleRequest{RoleID: "editor"},
+	)
+	if !errors.Is(err, domainerrors.ErrForbidden) {
+		t.Fatalf("expected forbidden, got %v", err)
+	}
+}
+
+func TestAuthorizationRevokeRoleRequiresAdminPermission(t *testing.T) {
+	module := authorization.NewInMemoryModule(nil)
+
+	_, err := module.Handler.GrantRoleHandler(
+		context.Background(),
+		"user-6",
+		"admin-1",
+		"idem-grant-for-revoke-perm",
+		httptransport.GrantRoleRequest{RoleID: "editor"},
+	)
+	if err != nil {
+		t.Fatalf("grant before revoke permission check failed: %v", err)
+	}
+
+	_, err = module.Handler.RevokeRoleHandler(
+		context.Background(),
+		"user-6",
+		"user-without-admin-role",
+		"idem-revoke-no-admin-perm",
+		httptransport.RevokeRoleRequest{RoleID: "editor"},
+	)
+	if !errors.Is(err, domainerrors.ErrForbidden) {
+		t.Fatalf("expected forbidden, got %v", err)
+	}
+}
+
+func TestAuthorizationDelegationRequiresDelegatePermission(t *testing.T) {
+	module := authorization.NewInMemoryModule(nil)
+
+	_, err := module.Handler.CreateDelegationHandler(
+		context.Background(),
+		"idem-delegation-no-permission",
+		httptransport.CreateDelegationRequest{
+			FromAdminID: "admin-1",
+			ToAdminID:   "admin-2",
+			RoleID:      "admin",
+			ExpiresAt:   time.Now().Add(time.Hour),
+			Reason:      "temporary",
+		},
+	)
+	if !errors.Is(err, domainerrors.ErrForbidden) {
+		t.Fatalf("expected forbidden, got %v", err)
+	}
+}

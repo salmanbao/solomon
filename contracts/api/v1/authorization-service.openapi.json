@@ -10,6 +10,14 @@
       "post": {
         "summary": "Check permission",
         "operationId": "authzCheckPermission",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -34,6 +42,9 @@
           "400": {
             "$ref": "#/components/responses/Error"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
           "422": {
             "$ref": "#/components/responses/Error"
           },
@@ -47,6 +58,14 @@
       "post": {
         "summary": "Check permissions batch",
         "operationId": "authzCheckPermissionsBatch",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -71,6 +90,9 @@
           "400": {
             "$ref": "#/components/responses/Error"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
           "422": {
             "$ref": "#/components/responses/Error"
           },
@@ -85,6 +107,12 @@
         "summary": "List user roles",
         "operationId": "authzListUserRoles",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
           {
             "name": "user_id",
             "in": "path",
@@ -108,6 +136,9 @@
           "404": {
             "$ref": "#/components/responses/Error"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
           "500": {
             "$ref": "#/components/responses/Error"
           }
@@ -120,6 +151,12 @@
         "operationId": "authzGrantRole",
         "parameters": [
           {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
             "name": "user_id",
             "in": "path",
             "required": true,
@@ -128,12 +165,7 @@
             }
           },
           {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
           }
         ],
         "requestBody": {
@@ -163,6 +195,12 @@
           "404": {
             "$ref": "#/components/responses/Error"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "409": {
             "$ref": "#/components/responses/Error"
           },
@@ -178,6 +216,12 @@
         "operationId": "authzRevokeRole",
         "parameters": [
           {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
             "name": "user_id",
             "in": "path",
             "required": true,
@@ -186,12 +230,7 @@
             }
           },
           {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
           }
         ],
         "requestBody": {
@@ -221,6 +260,12 @@
           "404": {
             "$ref": "#/components/responses/Error"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "409": {
             "$ref": "#/components/responses/Error"
           },
@@ -236,12 +281,13 @@
         "operationId": "authzCreateDelegation",
         "parameters": [
           {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
           }
         ],
         "requestBody": {
@@ -271,6 +317,12 @@
           "404": {
             "$ref": "#/components/responses/Error"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "409": {
             "$ref": "#/components/responses/Error"
           },
@@ -282,6 +334,32 @@
     }
   },
   "components": {
+    "parameters": {
+      "AuthorizationHeader": {
+        "name": "Authorization",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "RequestIDHeader": {
+        "name": "X-Request-Id",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "IdempotencyKeyHeader": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
     "responses": {
       "Error": {
         "description": "Error response",

@@ -134,6 +134,10 @@ func (u RevokeRoleUseCase) Execute(ctx context.Context, cmd RevokeRoleCommand) (
 		return replay, nil
 	}
 
+	if err := ensureActorPermission(ctx, u.Repository, cmd.AdminID, "user.revoke_role", now); err != nil {
+		return RevokeRoleResult{}, err
+	}
+
 	auditLogID, err := u.IDGenerator.NewID(ctx)
 	if err != nil {
 		return RevokeRoleResult{}, err
@@ -165,14 +169,16 @@ func (u RevokeRoleUseCase) Execute(ctx context.Context, cmd RevokeRoleCommand) (
 		return RevokeRoleResult{}, err
 	}
 
-	if err := u.PermissionCache.Invalidate(ctx, cmd.UserID); err != nil {
-		logger.Warn("permission cache invalidate failed after role revoke",
-			"event", "authz_cache_invalidation_failed",
-			"module", "identity-access/authorization-service",
-			"layer", "application",
-			"user_id", cmd.UserID,
-			"error", err.Error(),
-		)
+	if u.PermissionCache != nil {
+		if err := u.PermissionCache.Invalidate(ctx, cmd.UserID); err != nil {
+			logger.Warn("permission cache invalidate failed after role revoke",
+				"event", "authz_cache_invalidation_failed",
+				"module", "identity-access/authorization-service",
+				"layer", "application",
+				"user_id", cmd.UserID,
+				"error", err.Error(),
+			)
+		}
 	}
 
 	result := RevokeRoleResult{

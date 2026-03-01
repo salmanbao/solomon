@@ -79,9 +79,32 @@ func NewStore() *Store {
 			Permissions: []string{"user.grant_role", "user.revoke_role", "policy.manage", "role.delegate"},
 		},
 	}
+	seededAt := time.Now().UTC().Add(-24 * time.Hour)
+	assignments := map[string]entities.RoleAssignment{
+		"seed-admin-1": {
+			AssignmentID: "seed-admin-1",
+			UserID:       "admin-1",
+			RoleID:       "admin",
+			RoleName:     "admin",
+			AssignedBy:   "system",
+			Reason:       "seed",
+			AssignedAt:   seededAt,
+			IsActive:     true,
+		},
+		"seed-super-admin-1": {
+			AssignmentID: "seed-super-admin-1",
+			UserID:       "super-admin-1",
+			RoleID:       "super_admin",
+			RoleName:     "super_admin",
+			AssignedBy:   "system",
+			Reason:       "seed",
+			AssignedAt:   seededAt,
+			IsActive:     true,
+		},
+	}
 	return &Store{
 		roles:       roles,
-		assignments: make(map[string]entities.RoleAssignment),
+		assignments: assignments,
 		delegations: make(map[string]entities.Delegation),
 		idempotency: make(map[string]ports.IdempotencyRecord),
 		cache:       make(map[string]cacheEntry),

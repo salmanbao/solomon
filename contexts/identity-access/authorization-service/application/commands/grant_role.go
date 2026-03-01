@@ -137,6 +137,10 @@ func (u GrantRoleUseCase) Execute(ctx context.Context, cmd GrantRoleCommand) (Gr
 		return replay, nil
 	}
 
+	if err := ensureActorPermission(ctx, u.Repository, cmd.AdminID, "user.grant_role", now); err != nil {
+		return GrantRoleResult{}, err
+	}
+
 	assignmentID, err := u.IDGenerator.NewID(ctx)
 	if err != nil {
 		return GrantRoleResult{}, err
@@ -174,14 +178,16 @@ func (u GrantRoleUseCase) Execute(ctx context.Context, cmd GrantRoleCommand) (Gr
 		return GrantRoleResult{}, err
 	}
 
-	if err := u.PermissionCache.Invalidate(ctx, cmd.UserID); err != nil {
-		logger.Warn("permission cache invalidate failed after role grant",
-			"event", "authz_cache_invalidation_failed",
-			"module", "identity-access/authorization-service",
-			"layer", "application",
-			"user_id", cmd.UserID,
-			"error", err.Error(),
-		)
+	if u.PermissionCache != nil {
+		if err := u.PermissionCache.Invalidate(ctx, cmd.UserID); err != nil {
+			logger.Warn("permission cache invalidate failed after role grant",
+				"event", "authz_cache_invalidation_failed",
+				"module", "identity-access/authorization-service",
+				"layer", "application",
+				"user_id", cmd.UserID,
+				"error", err.Error(),
+			)
+		}
 	}
 
 	result := GrantRoleResult{

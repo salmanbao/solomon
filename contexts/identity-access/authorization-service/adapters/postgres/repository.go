@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"sort"
+	"strings"
 	"time"
 
 	"solomon/contexts/identity-access/authorization-service/domain/entities"
@@ -40,6 +41,9 @@ func (r *Repository) ListEffectivePermissions(ctx context.Context, userID string
 	type permissionRow struct {
 		PermissionKey string `gorm:"column:permission_key"`
 	}
+	type teamRoleRow struct {
+		Role string `gorm:"column:role"`
+	}
 
 	assignmentRows := make([]permissionRow, 0)
 	if err := r.db.WithContext(ctx).
@@ -67,6 +71,23 @@ func (r *Repository) ListEffectivePermissions(ctx context.Context, userID string
 	}
 	for _, row := range delegationRows {
 		merged[row.PermissionKey] = struct{}{}
+	}
+
+	teamRoleRows := make([]teamRoleRow, 0)
+	teamRolesQuery := r.db.WithContext(ctx).
+		Table("team_members").
+		Select("DISTINCT role").
+		Where("user_id = ?", userID)
+	if err := teamRolesQuery.Where("removed_at IS NULL").Scan(&teamRoleRows).Error; err != nil {
+		if !isOptionalTeamReadError(err) {
+			return nil, err
+		}
+	} else {
+		for _, row := range teamRoleRows {
+			for _, permission := range teamPermissionsForRole(row.Role) {
+				merged[permission] = struct{}{}
+			}
+		}
 	}
 
 	permissions := make([]string, 0, len(merged))
@@ -628,4 +649,55 @@ func mapWriteError(err error) error {
 		}
 	}
 	return err
+}
+
+func isOptionalTeamReadError(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	return pgErr.Code == "42P01" || pgErr.Code == "42703"
+}
+
+func teamPermissionsForRole(role string) []string {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "owner":
+		return []string{
+			"team.read", "team.write", "team.delete",
+			"campaigns.read", "campaigns.write",
+			"products.read", "products.write",
+			"payouts.read", "payouts.write",
+			"analytics.read",
+		}
+	case "manager":
+		return []string{
+			"team.read", "team.write",
+			"campaigns.read", "campaigns.write",
+			"products.read", "products.write",
+			"analytics.read",
+		}
+	case "editor":
+		return []string{
+			"team.read",
+			"campaigns.read", "campaigns.write",
+			"products.read",
+			"analytics.read",
+		}
+	case "support":
+		return []string{
+			"team.read",
+			"campaigns.read",
+			"products.read",
+			"payouts.read",
+		}
+	case "viewer":
+		return []string{
+			"team.read",
+			"campaigns.read",
+			"products.read",
+			"analytics.read",
+		}
+	default:
+		return nil
+	}
 }
