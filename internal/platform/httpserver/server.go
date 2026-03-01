@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	campaignservice "solomon/contexts/campaign-editorial/campaign-service"
 	campaignerrors "solomon/contexts/campaign-editorial/campaign-service/domain/errors"
@@ -28,6 +29,9 @@ import (
 	authorization "solomon/contexts/identity-access/authorization-service"
 	authzerrors "solomon/contexts/identity-access/authorization-service/domain/errors"
 	authzhttp "solomon/contexts/identity-access/authorization-service/transport/http"
+	superadmindashboard "solomon/contexts/internal-ops/super-admin-dashboard"
+	superadmindomainerrors "solomon/contexts/internal-ops/super-admin-dashboard/domain/errors"
+	superadminhttp "solomon/contexts/internal-ops/super-admin-dashboard/transport/http"
 
 	httpSwagger "github.com/swaggo/http-swagger"
 	_ "solomon/internal/platform/httpserver/docs"
@@ -44,6 +48,7 @@ type Server struct {
 	submission    submissionservice.Module
 	distribution  distributionservice.Module
 	voting        votingengine.Module
+	superAdmin    superadmindashboard.Module
 }
 
 func New(
@@ -72,6 +77,7 @@ func New(
 		submission:    submissionModule,
 		distribution:  distributionModule,
 		voting:        votingModule,
+		superAdmin:    superadmindashboard.NewInMemoryModule(logger),
 	}
 	s.registerRoutes()
 	s.httpServer = &http.Server{
@@ -119,7 +125,9 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /library/claims", s.handleListClaims)
 	s.mux.HandleFunc("GET /v1/marketplace/clips", s.handleListClips)
 	s.mux.HandleFunc("GET /v1/marketplace/clips/{clip_id}", s.handleGetClip)
+	s.mux.HandleFunc("GET /v1/marketplace/clips/{clip_id}/preview", s.handleGetClipPreview)
 	s.mux.HandleFunc("POST /v1/marketplace/clips/{clip_id}/claim", s.handleClaimClip)
+	s.mux.HandleFunc("POST /v1/marketplace/clips/{clip_id}/download", s.handleDownloadClip)
 	s.mux.HandleFunc("GET /v1/marketplace/claims", s.handleListClaims)
 
 	// M21
@@ -129,6 +137,24 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/authz/v1/users/{user_id}/roles/grant", s.handleAuthzGrantRole)
 	s.mux.HandleFunc("POST /api/authz/v1/users/{user_id}/roles/revoke", s.handleAuthzRevokeRole)
 	s.mux.HandleFunc("POST /api/authz/v1/delegations", s.handleAuthzCreateDelegation)
+
+	// M20
+	s.mux.HandleFunc("POST /api/admin/v1/impersonation/start", s.handleAdminStartImpersonation)
+	s.mux.HandleFunc("POST /api/admin/v1/impersonation/end", s.handleAdminEndImpersonation)
+	s.mux.HandleFunc("POST /api/admin/v1/users/{user_id}/wallet/adjust", s.handleAdminAdjustWallet)
+	s.mux.HandleFunc("GET /api/admin/v1/users/{user_id}/wallet/history", s.handleAdminWalletHistory)
+	s.mux.HandleFunc("POST /api/admin/v1/users/{user_id}/ban", s.handleAdminBanUser)
+	s.mux.HandleFunc("POST /api/admin/v1/users/{user_id}/unban", s.handleAdminUnbanUser)
+	s.mux.HandleFunc("GET /api/admin/v1/users/search", s.handleAdminSearchUsers)
+	s.mux.HandleFunc("POST /api/admin/v1/users/bulk-action", s.handleAdminBulkAction)
+	s.mux.HandleFunc("POST /api/admin/v1/campaigns/{campaign_id}/pause", s.handleAdminPauseCampaign)
+	s.mux.HandleFunc("PATCH /api/admin/v1/campaigns/{campaign_id}/adjust", s.handleAdminAdjustCampaign)
+	s.mux.HandleFunc("POST /api/admin/v1/submissions/{submission_id}/override", s.handleAdminOverrideSubmission)
+	s.mux.HandleFunc("GET /api/admin/v1/feature-flags", s.handleAdminFeatureFlags)
+	s.mux.HandleFunc("POST /api/admin/v1/feature-flags/{flag_key}/toggle", s.handleAdminToggleFeatureFlag)
+	s.mux.HandleFunc("GET /api/admin/v1/analytics/dashboard", s.handleAdminAnalyticsDashboard)
+	s.mux.HandleFunc("GET /api/admin/v1/audit-logs", s.handleAdminAuditLogs)
+	s.mux.HandleFunc("GET /api/admin/v1/audit-logs/export", s.handleAdminAuditLogsExport)
 
 	// M04
 	s.mux.HandleFunc("POST /v1/campaigns", s.handleCampaignCreate)
@@ -250,6 +276,87 @@ func writeSubmissionError(w http.ResponseWriter, status int, code string, messag
 	writeJSON(w, status, submissionhttp.ErrorResponse{Code: code, Message: message})
 }
 
+func writeSuperAdminError(w http.ResponseWriter, status int, code string, message string) {
+	writeJSON(w, status, superadminhttp.ErrorResponse{Code: code, Message: message})
+}
+
+func getAdminID(r *http.Request) string {
+	if adminID := strings.TrimSpace(r.Header.Get("X-Admin-Id")); adminID != "" {
+		return adminID
+	}
+	return strings.TrimSpace(r.Header.Get("X-User-Id"))
+}
+
+func requireAdminAuthorization(w http.ResponseWriter, r *http.Request) bool {
+	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || strings.TrimSpace(parts[1]) == "" {
+		writeSuperAdminError(w, http.StatusUnauthorized, "unauthorized", "Authorization bearer token is required")
+		return false
+	}
+	return true
+}
+
+func requireAdminRequestID(w http.ResponseWriter, r *http.Request) bool {
+	if strings.TrimSpace(r.Header.Get("X-Request-Id")) == "" {
+		writeSuperAdminError(w, http.StatusBadRequest, "missing_request_id", "X-Request-Id header is required")
+		return false
+	}
+	return true
+}
+
+func requireAdminMFA(w http.ResponseWriter, r *http.Request) bool {
+	if strings.TrimSpace(r.Header.Get("X-MFA-Code")) == "" {
+		writeSuperAdminError(w, http.StatusUnauthorized, "mfa_required", "X-MFA-Code header is required")
+		return false
+	}
+	return true
+}
+
+func requireAdminID(w http.ResponseWriter, r *http.Request) (string, bool) {
+	adminID := getAdminID(r)
+	if adminID == "" {
+		writeSuperAdminError(w, http.StatusUnauthorized, "missing_admin", "X-Admin-Id header is required")
+		return "", false
+	}
+	return adminID, true
+}
+
+func requireAdminHeaders(w http.ResponseWriter, r *http.Request) bool {
+	if !requireAdminAuthorization(w, r) {
+		return false
+	}
+	if !requireAdminMFA(w, r) {
+		return false
+	}
+	if !requireAdminRequestID(w, r) {
+		return false
+	}
+	return true
+}
+
+func requireAdminIdempotencyKey(w http.ResponseWriter, r *http.Request) (string, bool) {
+	idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if idempotencyKey == "" {
+		writeSuperAdminError(w, http.StatusBadRequest, "idempotency_key_required", "Idempotency-Key header is required")
+		return "", false
+	}
+	return idempotencyKey, true
+}
+
+func parseOptionalRFC3339(raw string) (time.Time, bool, error) {
+	if strings.TrimSpace(raw) == "" {
+		return time.Time{}, false, nil
+	}
+	if ts, err := time.Parse(time.RFC3339, raw); err == nil {
+		return ts.UTC(), true, nil
+	}
+	if day, err := time.Parse("2006-01-02", raw); err == nil {
+		return day.UTC(), true, nil
+	}
+	return time.Time{}, true, errors.New("invalid_time")
+}
+
 func requireSubmissionAuthorization(w http.ResponseWriter, r *http.Request) bool {
 	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
 	parts := strings.SplitN(authHeader, " ", 2)
@@ -285,6 +392,43 @@ func requireSubmissionIdempotencyKey(w http.ResponseWriter, r *http.Request) (st
 	idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
 	if idempotencyKey == "" {
 		writeSubmissionError(w, http.StatusBadRequest, "idempotency_key_required", "Idempotency-Key header is required")
+		return "", false
+	}
+	return idempotencyKey, true
+}
+
+func isCanonicalMarketplaceRoute(r *http.Request) bool {
+	return strings.HasPrefix(strings.TrimSpace(r.URL.Path), "/v1/marketplace/")
+}
+
+func requireMarketplaceAuthorization(w http.ResponseWriter, r *http.Request, strict bool) bool {
+	if !strict {
+		return true
+	}
+	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || strings.TrimSpace(parts[1]) == "" {
+		writeMarketplaceError(w, http.StatusUnauthorized, "unauthorized", "Authorization bearer token is required")
+		return false
+	}
+	return true
+}
+
+func requireMarketplaceRequestID(w http.ResponseWriter, r *http.Request, strict bool) bool {
+	if !strict {
+		return true
+	}
+	if strings.TrimSpace(r.Header.Get("X-Request-Id")) == "" {
+		writeMarketplaceError(w, http.StatusBadRequest, "missing_request_id", "X-Request-Id header is required")
+		return false
+	}
+	return true
+}
+
+func requireMarketplaceIdempotencyKey(w http.ResponseWriter, r *http.Request, strict bool) (string, bool) {
+	idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if strict && idempotencyKey == "" {
+		writeMarketplaceError(w, http.StatusBadRequest, "idempotency_key_required", "Idempotency-Key header is required")
 		return "", false
 	}
 	return idempotencyKey, true
@@ -347,6 +491,47 @@ func writeAuthzDomainError(w http.ResponseWriter, err error) {
 		writeAuthzError(w, http.StatusForbidden, "forbidden", err.Error())
 	default:
 		writeAuthzError(w, http.StatusInternalServerError, "internal_error", "internal server error")
+	}
+}
+
+func writeSuperAdminDomainError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, superadmindomainerrors.ErrUserNotFound):
+		writeSuperAdminError(w, http.StatusNotFound, "user_not_found", err.Error())
+	case errors.Is(err, superadmindomainerrors.ErrCampaignNotFound):
+		writeSuperAdminError(w, http.StatusNotFound, "campaign_not_found", err.Error())
+	case errors.Is(err, superadmindomainerrors.ErrSubmissionNotFound):
+		writeSuperAdminError(w, http.StatusNotFound, "submission_not_found", err.Error())
+	case errors.Is(err, superadmindomainerrors.ErrFlagNotFound):
+		writeSuperAdminError(w, http.StatusNotFound, "flag_not_found", err.Error())
+	case errors.Is(err, superadmindomainerrors.ErrImpersonationNotFound):
+		writeSuperAdminError(w, http.StatusNotFound, "impersonation_not_found", err.Error())
+	case errors.Is(err, superadmindomainerrors.ErrImpersonationAlreadyActive):
+		writeSuperAdminError(w, http.StatusConflict, "impersonation_already_active", err.Error())
+	case errors.Is(err, superadmindomainerrors.ErrImpersonationAlreadyEnded):
+		writeSuperAdminError(w, http.StatusConflict, "impersonation_already_ended", err.Error())
+	case errors.Is(err, superadmindomainerrors.ErrAlreadyBanned):
+		writeSuperAdminError(w, http.StatusConflict, "already_banned", err.Error())
+	case errors.Is(err, superadmindomainerrors.ErrNotBanned):
+		writeSuperAdminError(w, http.StatusConflict, "not_currently_banned", err.Error())
+	case errors.Is(err, superadmindomainerrors.ErrBulkActionConflict):
+		writeSuperAdminError(w, http.StatusConflict, "bulk_action_conflict", err.Error())
+	case errors.Is(err, superadmindomainerrors.ErrIdempotencyKeyRequired):
+		writeSuperAdminError(w, http.StatusBadRequest, "idempotency_key_required", err.Error())
+	case errors.Is(err, superadmindomainerrors.ErrIdempotencyConflict):
+		writeSuperAdminError(w, http.StatusConflict, "idempotency_conflict", err.Error())
+	case errors.Is(err, superadmindomainerrors.ErrInvalidRequest):
+		writeSuperAdminError(w, http.StatusBadRequest, "invalid_request", err.Error())
+	case errors.Is(err, superadmindomainerrors.ErrUnprocessable):
+		writeSuperAdminError(w, http.StatusUnprocessableEntity, "unprocessable", err.Error())
+	case errors.Is(err, superadmindomainerrors.ErrForbidden):
+		writeSuperAdminError(w, http.StatusForbidden, "forbidden", err.Error())
+	case errors.Is(err, superadmindomainerrors.ErrConflict):
+		writeSuperAdminError(w, http.StatusConflict, "conflict", err.Error())
+	case errors.Is(err, superadmindomainerrors.ErrNotFound):
+		writeSuperAdminError(w, http.StatusNotFound, "not_found", err.Error())
+	default:
+		writeSuperAdminError(w, http.StatusInternalServerError, "internal_error", "internal server error")
 	}
 }
 
@@ -471,6 +656,11 @@ func writeVotingDomainError(w http.ResponseWriter, err error) {
 }
 
 func (s *Server) handleListClips(w http.ResponseWriter, r *http.Request) {
+	strict := isCanonicalMarketplaceRoute(r)
+	if !requireMarketplaceAuthorization(w, r, strict) || !requireMarketplaceRequestID(w, r, strict) {
+		return
+	}
+
 	query := r.URL.Query()
 	req := marketplacehttp.ListClipsRequest{
 		Niche:          query["niche"],
@@ -496,6 +686,11 @@ func (s *Server) handleListClips(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetClip(w http.ResponseWriter, r *http.Request) {
+	strict := isCanonicalMarketplaceRoute(r)
+	if !requireMarketplaceAuthorization(w, r, strict) || !requireMarketplaceRequestID(w, r, strict) {
+		return
+	}
+
 	resp, err := s.marketplace.Handler.GetClipHandler(r.Context(), r.PathValue("clip_id"))
 	if err != nil {
 		writeMarketplaceDomainError(w, err)
@@ -505,6 +700,11 @@ func (s *Server) handleGetClip(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetClipPreview(w http.ResponseWriter, r *http.Request) {
+	strict := isCanonicalMarketplaceRoute(r)
+	if !requireMarketplaceAuthorization(w, r, strict) || !requireMarketplaceRequestID(w, r, strict) {
+		return
+	}
+
 	resp, err := s.marketplace.Handler.GetClipPreviewHandler(r.Context(), r.PathValue("clip_id"))
 	if err != nil {
 		writeMarketplaceDomainError(w, err)
@@ -514,9 +714,17 @@ func (s *Server) handleGetClipPreview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleClaimClip(w http.ResponseWriter, r *http.Request) {
+	strict := isCanonicalMarketplaceRoute(r)
+	if !requireMarketplaceAuthorization(w, r, strict) || !requireMarketplaceRequestID(w, r, strict) {
+		return
+	}
 	userID := getUserID(r)
 	if userID == "" {
 		writeMarketplaceError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
+		return
+	}
+	idempotencyKey, ok := requireMarketplaceIdempotencyKey(w, r, strict)
+	if !ok {
 		return
 	}
 	var req marketplacehttp.ClaimClipRequest
@@ -528,7 +736,7 @@ func (s *Server) handleClaimClip(w http.ResponseWriter, r *http.Request) {
 		userID,
 		r.PathValue("clip_id"),
 		req,
-		r.Header.Get("Idempotency-Key"),
+		idempotencyKey,
 	)
 	if err != nil {
 		writeMarketplaceDomainError(w, err)
@@ -538,6 +746,10 @@ func (s *Server) handleClaimClip(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListClaims(w http.ResponseWriter, r *http.Request) {
+	strict := isCanonicalMarketplaceRoute(r)
+	if !requireMarketplaceAuthorization(w, r, strict) || !requireMarketplaceRequestID(w, r, strict) {
+		return
+	}
 	userID := getUserID(r)
 	if userID == "" {
 		writeMarketplaceError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
@@ -552,6 +764,10 @@ func (s *Server) handleListClaims(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDownloadClip(w http.ResponseWriter, r *http.Request) {
+	strict := isCanonicalMarketplaceRoute(r)
+	if !requireMarketplaceAuthorization(w, r, strict) || !requireMarketplaceRequestID(w, r, strict) {
+		return
+	}
 	userID := getUserID(r)
 	if userID == "" {
 		writeMarketplaceError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
@@ -561,7 +777,7 @@ func (s *Server) handleDownloadClip(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		userID,
 		r.PathValue("clip_id"),
-		r.Header.Get("Idempotency-Key"),
+		strings.TrimSpace(r.Header.Get("Idempotency-Key")),
 		resolveClientIP(r),
 		r.UserAgent(),
 	)
@@ -665,6 +881,427 @@ func (s *Server) handleAuthzCreateDelegation(w http.ResponseWriter, r *http.Requ
 	resp, err := s.authorization.Handler.CreateDelegationHandler(r.Context(), r.Header.Get("Idempotency-Key"), req)
 	if err != nil {
 		writeAuthzDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleAdminStartImpersonation(w http.ResponseWriter, r *http.Request) {
+	if !requireAdminHeaders(w, r) {
+		return
+	}
+	adminID, ok := requireAdminID(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireAdminIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req superadminhttp.StartImpersonationRequest
+	if !s.decodeJSON(w, r, &req, writeSuperAdminError) {
+		return
+	}
+	resp, err := s.superAdmin.Handler.StartImpersonationHandler(r.Context(), adminID, idempotencyKey, req)
+	if err != nil {
+		writeSuperAdminDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleAdminEndImpersonation(w http.ResponseWriter, r *http.Request) {
+	if !requireAdminHeaders(w, r) {
+		return
+	}
+	if _, ok := requireAdminID(w, r); !ok {
+		return
+	}
+	idempotencyKey, ok := requireAdminIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req superadminhttp.EndImpersonationRequest
+	if !s.decodeJSON(w, r, &req, writeSuperAdminError) {
+		return
+	}
+	resp, err := s.superAdmin.Handler.EndImpersonationHandler(r.Context(), idempotencyKey, req)
+	if err != nil {
+		writeSuperAdminDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleAdminAdjustWallet(w http.ResponseWriter, r *http.Request) {
+	if !requireAdminHeaders(w, r) {
+		return
+	}
+	adminID, ok := requireAdminID(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireAdminIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req superadminhttp.WalletAdjustRequest
+	if !s.decodeJSON(w, r, &req, writeSuperAdminError) {
+		return
+	}
+	resp, err := s.superAdmin.Handler.AdjustWalletHandler(r.Context(), adminID, idempotencyKey, r.PathValue("user_id"), req)
+	if err != nil {
+		writeSuperAdminDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleAdminWalletHistory(w http.ResponseWriter, r *http.Request) {
+	if !requireAdminHeaders(w, r) {
+		return
+	}
+	if _, ok := requireAdminID(w, r); !ok {
+		return
+	}
+	limit := 20
+	if raw := strings.TrimSpace(r.URL.Query().Get("page_size")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			writeSuperAdminError(w, http.StatusBadRequest, "invalid_request", "page_size must be an integer")
+			return
+		}
+		limit = parsed
+	}
+	resp, err := s.superAdmin.Handler.WalletHistoryHandler(
+		r.Context(),
+		r.PathValue("user_id"),
+		r.URL.Query().Get("cursor"),
+		limit,
+	)
+	if err != nil {
+		writeSuperAdminDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleAdminBanUser(w http.ResponseWriter, r *http.Request) {
+	if !requireAdminHeaders(w, r) {
+		return
+	}
+	adminID, ok := requireAdminID(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireAdminIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req superadminhttp.BanUserRequest
+	if !s.decodeJSON(w, r, &req, writeSuperAdminError) {
+		return
+	}
+	resp, err := s.superAdmin.Handler.BanUserHandler(r.Context(), adminID, idempotencyKey, r.PathValue("user_id"), req)
+	if err != nil {
+		writeSuperAdminDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleAdminUnbanUser(w http.ResponseWriter, r *http.Request) {
+	if !requireAdminHeaders(w, r) {
+		return
+	}
+	adminID, ok := requireAdminID(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireAdminIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req superadminhttp.UnbanUserRequest
+	if !s.decodeJSON(w, r, &req, writeSuperAdminError) {
+		return
+	}
+	resp, err := s.superAdmin.Handler.UnbanUserHandler(r.Context(), adminID, idempotencyKey, r.PathValue("user_id"), req)
+	if err != nil {
+		writeSuperAdminDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleAdminSearchUsers(w http.ResponseWriter, r *http.Request) {
+	if !requireAdminHeaders(w, r) {
+		return
+	}
+	if _, ok := requireAdminID(w, r); !ok {
+		return
+	}
+	pageSize := 20
+	if raw := strings.TrimSpace(r.URL.Query().Get("page_size")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			writeSuperAdminError(w, http.StatusBadRequest, "invalid_request", "page_size must be an integer")
+			return
+		}
+		pageSize = parsed
+	}
+	resp, err := s.superAdmin.Handler.SearchUsersHandler(
+		r.Context(),
+		r.URL.Query().Get("query"),
+		r.URL.Query().Get("status"),
+		r.URL.Query().Get("cursor"),
+		pageSize,
+	)
+	if err != nil {
+		writeSuperAdminDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleAdminBulkAction(w http.ResponseWriter, r *http.Request) {
+	if !requireAdminHeaders(w, r) {
+		return
+	}
+	adminID, ok := requireAdminID(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireAdminIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req superadminhttp.BulkActionRequest
+	if !s.decodeJSON(w, r, &req, writeSuperAdminError) {
+		return
+	}
+	resp, err := s.superAdmin.Handler.BulkActionHandler(r.Context(), adminID, idempotencyKey, req)
+	if err != nil {
+		writeSuperAdminDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleAdminPauseCampaign(w http.ResponseWriter, r *http.Request) {
+	if !requireAdminHeaders(w, r) {
+		return
+	}
+	adminID, ok := requireAdminID(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireAdminIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req superadminhttp.PauseCampaignRequest
+	if !s.decodeJSON(w, r, &req, writeSuperAdminError) {
+		return
+	}
+	resp, err := s.superAdmin.Handler.PauseCampaignHandler(r.Context(), adminID, idempotencyKey, r.PathValue("campaign_id"), req)
+	if err != nil {
+		writeSuperAdminDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleAdminAdjustCampaign(w http.ResponseWriter, r *http.Request) {
+	if !requireAdminHeaders(w, r) {
+		return
+	}
+	adminID, ok := requireAdminID(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireAdminIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req superadminhttp.AdjustCampaignRequest
+	if !s.decodeJSON(w, r, &req, writeSuperAdminError) {
+		return
+	}
+	resp, err := s.superAdmin.Handler.AdjustCampaignHandler(r.Context(), adminID, idempotencyKey, r.PathValue("campaign_id"), req)
+	if err != nil {
+		writeSuperAdminDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleAdminOverrideSubmission(w http.ResponseWriter, r *http.Request) {
+	if !requireAdminHeaders(w, r) {
+		return
+	}
+	adminID, ok := requireAdminID(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireAdminIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req superadminhttp.OverrideSubmissionRequest
+	if !s.decodeJSON(w, r, &req, writeSuperAdminError) {
+		return
+	}
+	resp, err := s.superAdmin.Handler.OverrideSubmissionHandler(r.Context(), adminID, idempotencyKey, r.PathValue("submission_id"), req)
+	if err != nil {
+		writeSuperAdminDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleAdminFeatureFlags(w http.ResponseWriter, r *http.Request) {
+	if !requireAdminHeaders(w, r) {
+		return
+	}
+	if _, ok := requireAdminID(w, r); !ok {
+		return
+	}
+	resp, err := s.superAdmin.Handler.ListFeatureFlagsHandler(r.Context())
+	if err != nil {
+		writeSuperAdminDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleAdminToggleFeatureFlag(w http.ResponseWriter, r *http.Request) {
+	if !requireAdminHeaders(w, r) {
+		return
+	}
+	adminID, ok := requireAdminID(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireAdminIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req superadminhttp.ToggleFeatureFlagRequest
+	if !s.decodeJSON(w, r, &req, writeSuperAdminError) {
+		return
+	}
+	resp, err := s.superAdmin.Handler.ToggleFeatureFlagHandler(r.Context(), adminID, idempotencyKey, r.PathValue("flag_key"), req)
+	if err != nil {
+		writeSuperAdminDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleAdminAnalyticsDashboard(w http.ResponseWriter, r *http.Request) {
+	if !requireAdminHeaders(w, r) {
+		return
+	}
+	if _, ok := requireAdminID(w, r); !ok {
+		return
+	}
+	query := r.URL.Query()
+	startRaw := strings.TrimSpace(query.Get("start"))
+	if startRaw == "" {
+		startRaw = strings.TrimSpace(query.Get("date_from"))
+	}
+	endRaw := strings.TrimSpace(query.Get("end"))
+	if endRaw == "" {
+		endRaw = strings.TrimSpace(query.Get("date_to"))
+	}
+	start, _, err := parseOptionalRFC3339(startRaw)
+	if err != nil {
+		writeSuperAdminError(w, http.StatusUnprocessableEntity, "invalid_date_range", "start/date_from must be RFC3339 or YYYY-MM-DD")
+		return
+	}
+	end, _, err := parseOptionalRFC3339(endRaw)
+	if err != nil {
+		writeSuperAdminError(w, http.StatusUnprocessableEntity, "invalid_date_range", "end/date_to must be RFC3339 or YYYY-MM-DD")
+		return
+	}
+	resp, err := s.superAdmin.Handler.AnalyticsDashboardHandler(r.Context(), start, end)
+	if err != nil {
+		writeSuperAdminDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleAdminAuditLogs(w http.ResponseWriter, r *http.Request) {
+	if !requireAdminHeaders(w, r) {
+		return
+	}
+	if _, ok := requireAdminID(w, r); !ok {
+		return
+	}
+	pageSize := 20
+	if raw := strings.TrimSpace(r.URL.Query().Get("page_size")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			writeSuperAdminError(w, http.StatusBadRequest, "invalid_request", "page_size must be an integer")
+			return
+		}
+		pageSize = parsed
+	}
+	resp, err := s.superAdmin.Handler.AuditLogsHandler(
+		r.Context(),
+		r.URL.Query().Get("admin_id"),
+		r.URL.Query().Get("action_type"),
+		r.URL.Query().Get("cursor"),
+		pageSize,
+	)
+	if err != nil {
+		writeSuperAdminDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleAdminAuditLogsExport(w http.ResponseWriter, r *http.Request) {
+	if !requireAdminHeaders(w, r) {
+		return
+	}
+	if _, ok := requireAdminID(w, r); !ok {
+		return
+	}
+	query := r.URL.Query()
+	format := strings.TrimSpace(query.Get("format"))
+	startRaw := strings.TrimSpace(query.Get("start"))
+	if startRaw == "" {
+		startRaw = strings.TrimSpace(query.Get("date_from"))
+	}
+	endRaw := strings.TrimSpace(query.Get("end"))
+	if endRaw == "" {
+		endRaw = strings.TrimSpace(query.Get("date_to"))
+	}
+	start, _, err := parseOptionalRFC3339(startRaw)
+	if err != nil {
+		writeSuperAdminError(w, http.StatusUnprocessableEntity, "invalid_date_range", "start/date_from must be RFC3339 or YYYY-MM-DD")
+		return
+	}
+	end, _, err := parseOptionalRFC3339(endRaw)
+	if err != nil {
+		writeSuperAdminError(w, http.StatusUnprocessableEntity, "invalid_date_range", "end/date_to must be RFC3339 or YYYY-MM-DD")
+		return
+	}
+	includeSignatures := false
+	if raw := strings.TrimSpace(query.Get("include_signatures")); raw != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			writeSuperAdminError(w, http.StatusBadRequest, "invalid_request", "include_signatures must be boolean")
+			return
+		}
+		includeSignatures = parsed
+	}
+	resp, err := s.superAdmin.Handler.ExportAuditLogsHandler(r.Context(), format, start, end, includeSignatures)
+	if err != nil {
+		writeSuperAdminDomainError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, resp)

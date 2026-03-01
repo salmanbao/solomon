@@ -19,8 +19,25 @@ Current HTTP endpoints exposed through monolith server:
 
 - `GET /library/clips`
 - `GET /library/clips/{clip_id}`
+- `GET /library/clips/{clip_id}/preview`
 - `POST /library/clips/{clip_id}/claim`
+- `POST /library/clips/{clip_id}/download`
 - `GET /library/claims`
+- `GET /v1/marketplace/clips`
+- `GET /v1/marketplace/clips/{clip_id}`
+- `GET /v1/marketplace/clips/{clip_id}/preview`
+- `POST /v1/marketplace/clips/{clip_id}/claim`
+- `POST /v1/marketplace/clips/{clip_id}/download`
+- `GET /v1/marketplace/claims`
+
+Header policy:
+
+- Canonical `/v1/marketplace/*` routes enforce `Authorization: Bearer ...` and
+  `X-Request-Id`.
+- User-scoped `/v1/marketplace/*` routes also require `X-User-Id`.
+- `POST /v1/marketplace/clips/{clip_id}/claim` requires `Idempotency-Key`.
+- Legacy `/library/*` aliases are retained for compatibility; claim idempotency
+  key remains optional there.
 
 Code references:
 
@@ -120,7 +137,10 @@ Current migration baseline:
 - Port contract `CreateClaimWithOutbox` enforces "write claim + outbox" as one
   repository operation boundary.
 - In-memory adapter appends outbox entries to in-process store for testability.
-- Relay/consumer runtime is not implemented yet in this module.
+- Worker runtime includes:
+  - outbox relay for `distribution.claimed`
+  - consumer for `distribution.published` and `distribution.failed`
+  - claim expiry sweep worker
 
 ## Failure Handling And Idempotency
 
@@ -157,9 +177,11 @@ Boundary and compile gates:
 
 ## Operational Notes
 
-- Current runtime uses in-memory store through `NewInMemoryModule(...)`.
-- `internal/platform/httpserver/server.go` seeds one clip (`seedClips()`) so the
-  module is runnable before Postgres/Redis/Kafka adapters are wired.
+- API runtime wires M09 with Postgres repository in
+  `internal/app/bootstrap/bootstrap.go::BuildAPI`.
+- Worker runtime wires outbox relay and distribution consumers in
+  `internal/app/bootstrap/bootstrap.go::BuildWorker`.
+- In-memory store remains the unit-test/local harness adapter.
 - API process entrypoint: `cmd/api/main.go`.
 
 ## Decision Rationale
