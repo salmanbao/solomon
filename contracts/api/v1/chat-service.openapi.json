@@ -1,0 +1,168 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "M46 Chat Service API",
+    "version": "v1",
+    "description": "Stable API contract for implemented M46 endpoints in Solomon."
+  },
+  "paths": {
+    "/api/v1/chat/messages": {
+      "get": {
+        "summary": "Backfill channel messages by sequence"
+      },
+      "post": {
+        "summary": "Post message",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/api/v1/chat/messages/{message_id}": {
+      "put": {
+        "summary": "Edit message",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete message",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/api/v1/chat/channels/{channel_id}/messages": {
+      "get": {
+        "summary": "List channel messages"
+      }
+    },
+    "/api/v1/chat/channels/{channel_id}/unread-count": {
+      "get": {
+        "summary": "Get unread count"
+      }
+    },
+    "/api/v1/chat/search": {
+      "get": {
+        "summary": "Search messages"
+      }
+    },
+    "/api/v1/chat/poll": {
+      "get": {
+        "summary": "Long-poll messages"
+      }
+    },
+    "/api/v1/chat/messages/subscribe": {
+      "get": {
+        "summary": "Subscribe long-poll messages"
+      }
+    },
+    "/api/v1/chat/messages/{message_id}/reactions": {
+      "post": {
+        "summary": "Add reaction",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/api/v1/chat/messages/{message_id}/reactions/{emoji}": {
+      "delete": {
+        "summary": "Remove reaction",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/api/v1/chat/messages/{message_id}/pin": {
+      "post": {
+        "summary": "Pin message",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/api/v1/chat/messages/{message_id}/report": {
+      "post": {
+        "summary": "Report message",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/api/v1/chat/messages/{message_id}/attachments": {
+      "post": {
+        "summary": "Add attachment",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/api/v1/chat/messages/{message_id}/attachments/{attachment_id}": {
+      "get": {
+        "summary": "Get attachment metadata"
+      }
+    },
+    "/api/v1/chat/threads/{thread_id}/lock": {
+      "put": {
+        "summary": "Lock thread",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/api/v1/chat/servers/{server_id}/moderators": {
+      "put": {
+        "summary": "Update server moderators",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/api/v1/chat/users/{user_id}/mute": {
+      "post": {
+        "summary": "Mute user",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/api/v1/chat/export": {
+      "post": {
+        "summary": "Export chat messages"
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

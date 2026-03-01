@@ -13,6 +13,8 @@ Current implemented module contracts:
 - M09 API: `api/v1/content-library-marketplace.openapi.json`
 - M21 API: `api/v1/authorization-service.openapi.json`
 - M20 API: `api/v1/super-admin-dashboard.openapi.json`
+- M60 API: `api/v1/product-service.openapi.json`
+- M46 API: `api/v1/chat-service.openapi.json`
 - M09/M21 event payloads: `events/v1/*.schema.json`
 
 ## What Must Not Live Here

@@ -1,0 +1,105 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "M60 Product Service API",
+    "version": "v1",
+    "description": "Stable API contract for implemented M60 endpoints in Solomon."
+  },
+  "paths": {
+    "/api/v1/products": {
+      "get": {
+        "summary": "List products"
+      },
+      "post": {
+        "summary": "Create product",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/api/v1/products/{product_id}/access": {
+      "get": {
+        "summary": "Check product access"
+      }
+    },
+    "/api/v1/products/{id}/purchase": {
+      "post": {
+        "summary": "Purchase product",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/api/v1/products/{id}/fulfill": {
+      "post": {
+        "summary": "Fulfill product purchase",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/products/{product_id}/inventory": {
+      "post": {
+        "summary": "Adjust product inventory",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/api/v1/products/{product_id}/media/reorder": {
+      "put": {
+        "summary": "Reorder product media",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/api/v1/discover": {
+      "get": {
+        "summary": "Discover products"
+      }
+    },
+    "/api/v1/search": {
+      "get": {
+        "summary": "Search products"
+      }
+    },
+    "/api/v1/users/{user_id}/data-export": {
+      "get": {
+        "summary": "Export user product data"
+      }
+    },
+    "/api/v1/users/{user_id}/delete-account": {
+      "post": {
+        "summary": "Delete user account data",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

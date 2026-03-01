@@ -26,6 +26,12 @@ import (
 	votingengine "solomon/contexts/campaign-editorial/voting-engine"
 	votingerrors "solomon/contexts/campaign-editorial/voting-engine/domain/errors"
 	votinghttp "solomon/contexts/campaign-editorial/voting-engine/transport/http"
+	chatservice "solomon/contexts/community-experience/chat-service"
+	chatdomainerrors "solomon/contexts/community-experience/chat-service/domain/errors"
+	chathttp "solomon/contexts/community-experience/chat-service/transport/http"
+	productservice "solomon/contexts/community-experience/product-service"
+	productdomainerrors "solomon/contexts/community-experience/product-service/domain/errors"
+	producthttp "solomon/contexts/community-experience/product-service/transport/http"
 	authorization "solomon/contexts/identity-access/authorization-service"
 	authzerrors "solomon/contexts/identity-access/authorization-service/domain/errors"
 	authzhttp "solomon/contexts/identity-access/authorization-service/transport/http"
@@ -48,6 +54,8 @@ type Server struct {
 	submission    submissionservice.Module
 	distribution  distributionservice.Module
 	voting        votingengine.Module
+	chat          chatservice.Module
+	product       productservice.Module
 	superAdmin    superadmindashboard.Module
 }
 
@@ -77,6 +85,8 @@ func New(
 		submission:    submissionModule,
 		distribution:  distributionModule,
 		voting:        votingModule,
+		chat:          chatservice.NewInMemoryModule(logger),
+		product:       productservice.NewInMemoryModule(logger),
 		superAdmin:    superadmindashboard.NewInMemoryModule(logger),
 	}
 	s.registerRoutes()
@@ -155,6 +165,40 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/admin/v1/analytics/dashboard", s.handleAdminAnalyticsDashboard)
 	s.mux.HandleFunc("GET /api/admin/v1/audit-logs", s.handleAdminAuditLogs)
 	s.mux.HandleFunc("GET /api/admin/v1/audit-logs/export", s.handleAdminAuditLogsExport)
+
+	// M60
+	s.mux.HandleFunc("GET /api/v1/products", s.handleProductList)
+	s.mux.HandleFunc("POST /api/v1/products", s.handleProductCreate)
+	s.mux.HandleFunc("GET /api/v1/products/{product_id}/access", s.handleProductCheckAccess)
+	s.mux.HandleFunc("POST /api/v1/products/{id}/purchase", s.handleProductPurchase)
+	s.mux.HandleFunc("POST /api/v1/products/{id}/fulfill", s.handleProductFulfill)
+	s.mux.HandleFunc("POST /api/v1/admin/products/{product_id}/inventory", s.handleProductAdjustInventory)
+	s.mux.HandleFunc("PUT /api/v1/products/{product_id}/media/reorder", s.handleProductMediaReorder)
+	s.mux.HandleFunc("GET /api/v1/discover", s.handleProductDiscover)
+	s.mux.HandleFunc("GET /api/v1/search", s.handleProductSearch)
+	s.mux.HandleFunc("GET /api/v1/users/{user_id}/data-export", s.handleProductUserDataExport)
+	s.mux.HandleFunc("POST /api/v1/users/{user_id}/delete-account", s.handleProductDeleteAccount)
+
+	// M46
+	s.mux.HandleFunc("POST /api/v1/chat/messages", s.handleChatPostMessage)
+	s.mux.HandleFunc("PUT /api/v1/chat/messages/{message_id}", s.handleChatEditMessage)
+	s.mux.HandleFunc("DELETE /api/v1/chat/messages/{message_id}", s.handleChatDeleteMessage)
+	s.mux.HandleFunc("GET /api/v1/chat/channels/{channel_id}/messages", s.handleChatListMessages)
+	s.mux.HandleFunc("GET /api/v1/chat/channels/{channel_id}/unread-count", s.handleChatUnreadCount)
+	s.mux.HandleFunc("GET /api/v1/chat/search", s.handleChatSearch)
+	s.mux.HandleFunc("GET /api/v1/chat/messages", s.handleChatBackfill)
+	s.mux.HandleFunc("GET /api/v1/chat/poll", s.handleChatPoll)
+	s.mux.HandleFunc("GET /api/v1/chat/messages/subscribe", s.handleChatPoll)
+	s.mux.HandleFunc("POST /api/v1/chat/messages/{message_id}/reactions", s.handleChatAddReaction)
+	s.mux.HandleFunc("DELETE /api/v1/chat/messages/{message_id}/reactions/{emoji}", s.handleChatRemoveReaction)
+	s.mux.HandleFunc("POST /api/v1/chat/messages/{message_id}/pin", s.handleChatPinMessage)
+	s.mux.HandleFunc("POST /api/v1/chat/messages/{message_id}/report", s.handleChatReportMessage)
+	s.mux.HandleFunc("POST /api/v1/chat/messages/{message_id}/attachments", s.handleChatAddAttachment)
+	s.mux.HandleFunc("GET /api/v1/chat/messages/{message_id}/attachments/{attachment_id}", s.handleChatGetAttachment)
+	s.mux.HandleFunc("PUT /api/v1/chat/threads/{thread_id}/lock", s.handleChatLockThread)
+	s.mux.HandleFunc("PUT /api/v1/chat/servers/{server_id}/moderators", s.handleChatUpdateModerators)
+	s.mux.HandleFunc("POST /api/v1/chat/users/{user_id}/mute", s.handleChatMuteUser)
+	s.mux.HandleFunc("POST /api/v1/chat/export", s.handleChatExport)
 
 	// M04
 	s.mux.HandleFunc("POST /v1/campaigns", s.handleCampaignCreate)
@@ -276,6 +320,14 @@ func writeSubmissionError(w http.ResponseWriter, status int, code string, messag
 	writeJSON(w, status, submissionhttp.ErrorResponse{Code: code, Message: message})
 }
 
+func writeProductError(w http.ResponseWriter, status int, code string, message string) {
+	writeJSON(w, status, producthttp.ErrorResponse{Code: code, Message: message})
+}
+
+func writeChatError(w http.ResponseWriter, status int, code string, message string) {
+	writeJSON(w, status, chathttp.ErrorResponse{Code: code, Message: message})
+}
+
 func writeSuperAdminError(w http.ResponseWriter, status int, code string, message string) {
 	writeJSON(w, status, superadminhttp.ErrorResponse{Code: code, Message: message})
 }
@@ -339,6 +391,78 @@ func requireAdminIdempotencyKey(w http.ResponseWriter, r *http.Request) (string,
 	idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
 	if idempotencyKey == "" {
 		writeSuperAdminError(w, http.StatusBadRequest, "idempotency_key_required", "Idempotency-Key header is required")
+		return "", false
+	}
+	return idempotencyKey, true
+}
+
+func requireProductAuthorization(w http.ResponseWriter, r *http.Request) bool {
+	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || strings.TrimSpace(parts[1]) == "" {
+		writeProductError(w, http.StatusUnauthorized, "unauthorized", "Authorization bearer token is required")
+		return false
+	}
+	return true
+}
+
+func requireProductRequestID(w http.ResponseWriter, r *http.Request) bool {
+	if strings.TrimSpace(r.Header.Get("X-Request-Id")) == "" {
+		writeProductError(w, http.StatusBadRequest, "missing_request_id", "X-Request-Id header is required")
+		return false
+	}
+	return true
+}
+
+func requireProductUser(w http.ResponseWriter, r *http.Request) (string, bool) {
+	userID := strings.TrimSpace(r.Header.Get("X-User-Id"))
+	if userID == "" {
+		writeProductError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
+		return "", false
+	}
+	return userID, true
+}
+
+func requireProductIdempotencyKey(w http.ResponseWriter, r *http.Request) (string, bool) {
+	idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if idempotencyKey == "" {
+		writeProductError(w, http.StatusBadRequest, "idempotency_key_required", "Idempotency-Key header is required")
+		return "", false
+	}
+	return idempotencyKey, true
+}
+
+func requireChatAuthorization(w http.ResponseWriter, r *http.Request) bool {
+	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || strings.TrimSpace(parts[1]) == "" {
+		writeChatError(w, http.StatusUnauthorized, "unauthorized", "Authorization bearer token is required")
+		return false
+	}
+	return true
+}
+
+func requireChatRequestID(w http.ResponseWriter, r *http.Request) bool {
+	if strings.TrimSpace(r.Header.Get("X-Request-Id")) == "" {
+		writeChatError(w, http.StatusBadRequest, "missing_request_id", "X-Request-Id header is required")
+		return false
+	}
+	return true
+}
+
+func requireChatUser(w http.ResponseWriter, r *http.Request) (string, bool) {
+	userID := strings.TrimSpace(r.Header.Get("X-User-Id"))
+	if userID == "" {
+		writeChatError(w, http.StatusUnauthorized, "missing_user", "X-User-Id header is required")
+		return "", false
+	}
+	return userID, true
+}
+
+func requireChatIdempotencyKey(w http.ResponseWriter, r *http.Request) (string, bool) {
+	idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if idempotencyKey == "" {
+		writeChatError(w, http.StatusBadRequest, "idempotency_key_required", "Idempotency-Key header is required")
 		return "", false
 	}
 	return idempotencyKey, true
@@ -532,6 +656,50 @@ func writeSuperAdminDomainError(w http.ResponseWriter, err error) {
 		writeSuperAdminError(w, http.StatusNotFound, "not_found", err.Error())
 	default:
 		writeSuperAdminError(w, http.StatusInternalServerError, "internal_error", "internal server error")
+	}
+}
+
+func writeProductDomainError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, productdomainerrors.ErrProductNotFound),
+		errors.Is(err, productdomainerrors.ErrPurchaseNotFound),
+		errors.Is(err, productdomainerrors.ErrNotFound):
+		writeProductError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, productdomainerrors.ErrPaymentRequired):
+		writeProductError(w, http.StatusPaymentRequired, "payment_required", err.Error())
+	case errors.Is(err, productdomainerrors.ErrSoldOut):
+		writeProductError(w, http.StatusBadRequest, "sold_out", err.Error())
+	case errors.Is(err, productdomainerrors.ErrInvalidRequest),
+		errors.Is(err, productdomainerrors.ErrIdempotencyKeyRequired):
+		writeProductError(w, http.StatusBadRequest, "invalid_request", err.Error())
+	case errors.Is(err, productdomainerrors.ErrIdempotencyConflict),
+		errors.Is(err, productdomainerrors.ErrConflict):
+		writeProductError(w, http.StatusConflict, "conflict", err.Error())
+	case errors.Is(err, productdomainerrors.ErrForbidden):
+		writeProductError(w, http.StatusForbidden, "forbidden", err.Error())
+	default:
+		writeProductError(w, http.StatusInternalServerError, "internal_error", "internal server error")
+	}
+}
+
+func writeChatDomainError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, chatdomainerrors.ErrMessageNotFound),
+		errors.Is(err, chatdomainerrors.ErrAttachmentNotFound),
+		errors.Is(err, chatdomainerrors.ErrNotFound):
+		writeChatError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, chatdomainerrors.ErrInvalidRequest),
+		errors.Is(err, chatdomainerrors.ErrIdempotencyKeyRequired):
+		writeChatError(w, http.StatusBadRequest, "invalid_request", err.Error())
+	case errors.Is(err, chatdomainerrors.ErrIdempotencyConflict),
+		errors.Is(err, chatdomainerrors.ErrConflict):
+		writeChatError(w, http.StatusConflict, "conflict", err.Error())
+	case errors.Is(err, chatdomainerrors.ErrRateLimited):
+		writeChatError(w, http.StatusTooManyRequests, "rate_limit_exceeded", err.Error())
+	case errors.Is(err, chatdomainerrors.ErrForbidden):
+		writeChatError(w, http.StatusForbidden, "forbidden", err.Error())
+	default:
+		writeChatError(w, http.StatusInternalServerError, "internal_error", "internal server error")
 	}
 }
 
@@ -1305,6 +1473,694 @@ func (s *Server) handleAdminAuditLogsExport(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleProductList(w http.ResponseWriter, r *http.Request) {
+	if !requireProductAuthorization(w, r) || !requireProductRequestID(w, r) {
+		return
+	}
+	page := 1
+	limit := 20
+	if raw := strings.TrimSpace(r.URL.Query().Get("page")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			writeProductError(w, http.StatusBadRequest, "invalid_request", "page must be an integer")
+			return
+		}
+		page = parsed
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			writeProductError(w, http.StatusBadRequest, "invalid_request", "limit must be an integer")
+			return
+		}
+		limit = parsed
+	}
+	resp, err := s.product.Handler.ListProductsHandler(r.Context(), producthttp.ListProductsRequest{
+		CreatorID:   strings.TrimSpace(r.URL.Query().Get("creator_id")),
+		ProductType: strings.TrimSpace(r.URL.Query().Get("type")),
+		Visibility:  strings.TrimSpace(r.URL.Query().Get("visibility")),
+		Page:        page,
+		Limit:       limit,
+	})
+	if err != nil {
+		writeProductDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleProductCreate(w http.ResponseWriter, r *http.Request) {
+	if !requireProductAuthorization(w, r) || !requireProductRequestID(w, r) {
+		return
+	}
+	creatorID, ok := requireProductUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireProductIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req producthttp.CreateProductRequest
+	if !s.decodeJSON(w, r, &req, writeProductError) {
+		return
+	}
+	resp, err := s.product.Handler.CreateProductHandler(r.Context(), creatorID, idempotencyKey, req)
+	if err != nil {
+		writeProductDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, resp)
+}
+
+func (s *Server) handleProductCheckAccess(w http.ResponseWriter, r *http.Request) {
+	if !requireProductAuthorization(w, r) || !requireProductRequestID(w, r) {
+		return
+	}
+	userID := strings.TrimSpace(r.URL.Query().Get("user_id"))
+	if userID == "" {
+		userID = getUserID(r)
+	}
+	if strings.TrimSpace(userID) == "" {
+		writeProductError(w, http.StatusUnauthorized, "missing_user", "user_id query or X-User-Id header is required")
+		return
+	}
+	resp, err := s.product.Handler.CheckAccessHandler(r.Context(), userID, r.PathValue("product_id"))
+	if err != nil {
+		writeProductDomainError(w, err)
+		return
+	}
+	if !resp.Data.HasAccess {
+		writeProductError(w, http.StatusPaymentRequired, "payment_required", "You need to purchase this product to access it.")
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleProductPurchase(w http.ResponseWriter, r *http.Request) {
+	if !requireProductAuthorization(w, r) || !requireProductRequestID(w, r) {
+		return
+	}
+	userID, ok := requireProductUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireProductIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	resp, err := s.product.Handler.PurchaseProductHandler(r.Context(), userID, idempotencyKey, r.PathValue("id"))
+	if err != nil {
+		writeProductDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleProductFulfill(w http.ResponseWriter, r *http.Request) {
+	if !requireProductAuthorization(w, r) || !requireProductRequestID(w, r) {
+		return
+	}
+	userID, ok := requireProductUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireProductIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	resp, err := s.product.Handler.FulfillProductHandler(r.Context(), userID, idempotencyKey, r.PathValue("id"))
+	if err != nil {
+		writeProductDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleProductAdjustInventory(w http.ResponseWriter, r *http.Request) {
+	if !requireProductAuthorization(w, r) || !requireProductRequestID(w, r) {
+		return
+	}
+	adminID := getAdminID(r)
+	if adminID == "" {
+		writeProductError(w, http.StatusUnauthorized, "missing_admin", "X-Admin-Id header is required")
+		return
+	}
+	idempotencyKey, ok := requireProductIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req producthttp.AdjustInventoryRequest
+	if !s.decodeJSON(w, r, &req, writeProductError) {
+		return
+	}
+	resp, err := s.product.Handler.AdjustInventoryHandler(r.Context(), adminID, idempotencyKey, r.PathValue("product_id"), req)
+	if err != nil {
+		writeProductDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleProductMediaReorder(w http.ResponseWriter, r *http.Request) {
+	if !requireProductAuthorization(w, r) || !requireProductRequestID(w, r) {
+		return
+	}
+	idempotencyKey, ok := requireProductIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req producthttp.ReorderMediaRequest
+	if !s.decodeJSON(w, r, &req, writeProductError) {
+		return
+	}
+	resp, err := s.product.Handler.ReorderMediaHandler(r.Context(), idempotencyKey, r.PathValue("product_id"), req)
+	if err != nil {
+		writeProductDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleProductDiscover(w http.ResponseWriter, r *http.Request) {
+	limit := 20
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			writeProductError(w, http.StatusBadRequest, "invalid_request", "limit must be an integer")
+			return
+		}
+		limit = parsed
+	}
+	resp, err := s.product.Handler.DiscoverProductsHandler(r.Context(), limit)
+	if err != nil {
+		writeProductDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleProductSearch(w http.ResponseWriter, r *http.Request) {
+	limit := 20
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			writeProductError(w, http.StatusBadRequest, "invalid_request", "limit must be an integer")
+			return
+		}
+		limit = parsed
+	}
+	resp, err := s.product.Handler.SearchProductsHandler(
+		r.Context(),
+		strings.TrimSpace(r.URL.Query().Get("q")),
+		strings.TrimSpace(r.URL.Query().Get("type")),
+		limit,
+	)
+	if err != nil {
+		writeProductDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleProductUserDataExport(w http.ResponseWriter, r *http.Request) {
+	if !requireProductAuthorization(w, r) || !requireProductRequestID(w, r) {
+		return
+	}
+	resp, err := s.product.Handler.ExportUserDataHandler(r.Context(), r.PathValue("user_id"))
+	if err != nil {
+		writeProductDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleProductDeleteAccount(w http.ResponseWriter, r *http.Request) {
+	if !requireProductAuthorization(w, r) || !requireProductRequestID(w, r) {
+		return
+	}
+	idempotencyKey, ok := requireProductIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	resp, err := s.product.Handler.DeleteUserDataHandler(r.Context(), idempotencyKey, r.PathValue("user_id"))
+	if err != nil {
+		writeProductDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleChatPostMessage(w http.ResponseWriter, r *http.Request) {
+	if !requireChatAuthorization(w, r) || !requireChatRequestID(w, r) {
+		return
+	}
+	userID, ok := requireChatUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireChatIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req chathttp.PostMessageRequest
+	if !s.decodeJSON(w, r, &req, writeChatError) {
+		return
+	}
+	resp, err := s.chat.Handler.PostMessageHandler(r.Context(), userID, userID, idempotencyKey, req)
+	if err != nil {
+		writeChatDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, resp)
+}
+
+func (s *Server) handleChatEditMessage(w http.ResponseWriter, r *http.Request) {
+	if !requireChatAuthorization(w, r) || !requireChatRequestID(w, r) {
+		return
+	}
+	userID, ok := requireChatUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireChatIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req chathttp.EditMessageRequest
+	if !s.decodeJSON(w, r, &req, writeChatError) {
+		return
+	}
+	resp, err := s.chat.Handler.EditMessageHandler(r.Context(), userID, chatMessageIDFromPath(r), idempotencyKey, req)
+	if err != nil {
+		writeChatDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleChatDeleteMessage(w http.ResponseWriter, r *http.Request) {
+	if !requireChatAuthorization(w, r) || !requireChatRequestID(w, r) {
+		return
+	}
+	userID, ok := requireChatUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireChatIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req chathttp.DeleteMessageRequest
+	if !s.decodeJSON(w, r, &req, writeChatError) {
+		return
+	}
+	resp, err := s.chat.Handler.DeleteMessageHandler(r.Context(), userID, chatMessageIDFromPath(r), idempotencyKey, req)
+	if err != nil {
+		writeChatDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleChatListMessages(w http.ResponseWriter, r *http.Request) {
+	if !requireChatAuthorization(w, r) || !requireChatRequestID(w, r) {
+		return
+	}
+	limit := 50
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			writeChatError(w, http.StatusBadRequest, "invalid_request", "limit must be an integer")
+			return
+		}
+		limit = parsed
+	}
+	afterSeq := int64(0)
+	if raw := strings.TrimSpace(r.URL.Query().Get("after_seq")); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			writeChatError(w, http.StatusBadRequest, "invalid_request", "after_seq must be an integer")
+			return
+		}
+		afterSeq = parsed
+	}
+	resp, err := s.chat.Handler.ListMessagesHandler(
+		r.Context(),
+		r.PathValue("channel_id"),
+		strings.TrimSpace(r.URL.Query().Get("before")),
+		afterSeq,
+		limit,
+	)
+	if err != nil {
+		writeChatDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleChatUnreadCount(w http.ResponseWriter, r *http.Request) {
+	if !requireChatAuthorization(w, r) || !requireChatRequestID(w, r) {
+		return
+	}
+	userID, ok := requireChatUser(w, r)
+	if !ok {
+		return
+	}
+	resp, err := s.chat.Handler.UnreadCountHandler(
+		r.Context(),
+		userID,
+		r.PathValue("channel_id"),
+		strings.TrimSpace(r.URL.Query().Get("last_read_id")),
+	)
+	if err != nil {
+		writeChatDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleChatSearch(w http.ResponseWriter, r *http.Request) {
+	if !requireChatAuthorization(w, r) || !requireChatRequestID(w, r) {
+		return
+	}
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	limit := 10
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			writeChatError(w, http.StatusBadRequest, "invalid_request", "limit must be an integer")
+			return
+		}
+		limit = parsed
+	}
+	resp, err := s.chat.Handler.SearchMessagesHandler(r.Context(), query, strings.TrimSpace(r.URL.Query().Get("channel_id")), limit)
+	if err != nil {
+		writeChatDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleChatBackfill(w http.ResponseWriter, r *http.Request) {
+	if !requireChatAuthorization(w, r) || !requireChatRequestID(w, r) {
+		return
+	}
+	channelID := strings.TrimSpace(r.URL.Query().Get("channel_id"))
+	if channelID == "" {
+		writeChatError(w, http.StatusBadRequest, "invalid_request", "channel_id query parameter is required")
+		return
+	}
+	afterSeq := int64(0)
+	if raw := strings.TrimSpace(r.URL.Query().Get("after_seq")); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			writeChatError(w, http.StatusBadRequest, "invalid_request", "after_seq must be an integer")
+			return
+		}
+		afterSeq = parsed
+	}
+	limit := 50
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			writeChatError(w, http.StatusBadRequest, "invalid_request", "limit must be an integer")
+			return
+		}
+		limit = parsed
+	}
+	resp, err := s.chat.Handler.ListMessagesHandler(r.Context(), channelID, "", afterSeq, limit)
+	if err != nil {
+		writeChatDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleChatPoll(w http.ResponseWriter, r *http.Request) {
+	if !requireChatAuthorization(w, r) || !requireChatRequestID(w, r) {
+		return
+	}
+	channelID := strings.TrimSpace(r.URL.Query().Get("channel_id"))
+	if channelID == "" {
+		writeChatError(w, http.StatusBadRequest, "invalid_request", "channel_id query parameter is required")
+		return
+	}
+	afterSeq := int64(0)
+	if raw := strings.TrimSpace(r.URL.Query().Get("after_seq")); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			writeChatError(w, http.StatusBadRequest, "invalid_request", "after_seq must be an integer")
+			return
+		}
+		afterSeq = parsed
+	}
+	resp, err := s.chat.Handler.ListMessagesHandler(r.Context(), channelID, "", afterSeq, 50)
+	if err != nil {
+		writeChatDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleChatAddReaction(w http.ResponseWriter, r *http.Request) {
+	if !requireChatAuthorization(w, r) || !requireChatRequestID(w, r) {
+		return
+	}
+	userID, ok := requireChatUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireChatIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req chathttp.ReactionRequest
+	if !s.decodeJSON(w, r, &req, writeChatError) {
+		return
+	}
+	resp, err := s.chat.Handler.AddReactionHandler(r.Context(), userID, r.PathValue("message_id"), idempotencyKey, req)
+	if err != nil {
+		writeChatDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleChatRemoveReaction(w http.ResponseWriter, r *http.Request) {
+	if !requireChatAuthorization(w, r) || !requireChatRequestID(w, r) {
+		return
+	}
+	userID, ok := requireChatUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireChatIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	resp, err := s.chat.Handler.RemoveReactionHandler(
+		r.Context(),
+		userID,
+		r.PathValue("message_id"),
+		r.PathValue("emoji"),
+		idempotencyKey,
+	)
+	if err != nil {
+		writeChatDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleChatPinMessage(w http.ResponseWriter, r *http.Request) {
+	if !requireChatAuthorization(w, r) || !requireChatRequestID(w, r) {
+		return
+	}
+	userID, ok := requireChatUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireChatIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req chathttp.PinMessageRequest
+	if !s.decodeJSON(w, r, &req, writeChatError) {
+		return
+	}
+	resp, err := s.chat.Handler.PinMessageHandler(r.Context(), userID, r.PathValue("message_id"), idempotencyKey, req)
+	if err != nil {
+		writeChatDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleChatReportMessage(w http.ResponseWriter, r *http.Request) {
+	if !requireChatAuthorization(w, r) || !requireChatRequestID(w, r) {
+		return
+	}
+	userID, ok := requireChatUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireChatIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req chathttp.ReportMessageRequest
+	if !s.decodeJSON(w, r, &req, writeChatError) {
+		return
+	}
+	resp, err := s.chat.Handler.ReportMessageHandler(r.Context(), userID, r.PathValue("message_id"), idempotencyKey, req)
+	if err != nil {
+		writeChatDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleChatAddAttachment(w http.ResponseWriter, r *http.Request) {
+	if !requireChatAuthorization(w, r) || !requireChatRequestID(w, r) {
+		return
+	}
+	userID, ok := requireChatUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireChatIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req chathttp.AddAttachmentRequest
+	if !s.decodeJSON(w, r, &req, writeChatError) {
+		return
+	}
+	resp, err := s.chat.Handler.AddAttachmentHandler(r.Context(), userID, r.PathValue("message_id"), idempotencyKey, req)
+	if err != nil {
+		writeChatDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, resp)
+}
+
+func (s *Server) handleChatGetAttachment(w http.ResponseWriter, r *http.Request) {
+	if !requireChatAuthorization(w, r) || !requireChatRequestID(w, r) {
+		return
+	}
+	resp, err := s.chat.Handler.GetAttachmentHandler(r.Context(), r.PathValue("message_id"), r.PathValue("attachment_id"))
+	if err != nil {
+		writeChatDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleChatLockThread(w http.ResponseWriter, r *http.Request) {
+	if !requireChatAuthorization(w, r) || !requireChatRequestID(w, r) {
+		return
+	}
+	userID, ok := requireChatUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireChatIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	resp, err := s.chat.Handler.LockThreadHandler(r.Context(), userID, r.PathValue("thread_id"), idempotencyKey)
+	if err != nil {
+		writeChatDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleChatUpdateModerators(w http.ResponseWriter, r *http.Request) {
+	if !requireChatAuthorization(w, r) || !requireChatRequestID(w, r) {
+		return
+	}
+	userID, ok := requireChatUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireChatIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req chathttp.UpdateModeratorsRequest
+	if !s.decodeJSON(w, r, &req, writeChatError) {
+		return
+	}
+	resp, err := s.chat.Handler.UpdateModeratorsHandler(r.Context(), userID, r.PathValue("server_id"), idempotencyKey, req)
+	if err != nil {
+		writeChatDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleChatMuteUser(w http.ResponseWriter, r *http.Request) {
+	if !requireChatAuthorization(w, r) || !requireChatRequestID(w, r) {
+		return
+	}
+	userID, ok := requireChatUser(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey, ok := requireChatIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	var req chathttp.MuteUserRequest
+	if !s.decodeJSON(w, r, &req, writeChatError) {
+		return
+	}
+	if req.Duration == "" {
+		req.Duration = strings.TrimSpace(r.URL.Query().Get("duration"))
+	}
+	resp, err := s.chat.Handler.MuteUserHandler(r.Context(), userID, r.PathValue("user_id"), idempotencyKey, req)
+	if err != nil {
+		writeChatDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleChatExport(w http.ResponseWriter, r *http.Request) {
+	if !requireChatAuthorization(w, r) || !requireChatRequestID(w, r) {
+		return
+	}
+	limit := 1000
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			writeChatError(w, http.StatusBadRequest, "invalid_request", "limit must be an integer")
+			return
+		}
+		limit = parsed
+	}
+	resp, err := s.chat.Handler.ExportMessagesHandler(
+		r.Context(),
+		strings.TrimSpace(r.URL.Query().Get("server_id")),
+		strings.TrimSpace(r.URL.Query().Get("channel_id")),
+		limit,
+	)
+	if err != nil {
+		writeChatDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func chatMessageIDFromPath(r *http.Request) string {
+	if messageID := strings.TrimSpace(r.PathValue("message_id")); messageID != "" {
+		return messageID
+	}
+	return strings.TrimSpace(r.PathValue("id"))
 }
 
 func (s *Server) handleCampaignCreate(w http.ResponseWriter, r *http.Request) {

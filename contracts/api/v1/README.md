@@ -16,3 +16,7 @@ Only stable, consumer-facing contract artifacts belong here.
   - Covers implemented M08 HTTP routes under `/v1/votes*`, `/v1/leaderboards/*`, `/v1/rounds/*`, `/v1/analytics/votes`, and `/v1/quarantine/*`.
 - `super-admin-dashboard.openapi.json`
   - Covers implemented M20 HTTP routes under `/api/admin/v1/*`.
+- `product-service.openapi.json`
+  - Covers implemented M60 HTTP routes under `/api/v1/products*`, discovery/search, and user data endpoints.
+- `chat-service.openapi.json`
+  - Covers implemented M46 HTTP routes under `/api/v1/chat/*`.
