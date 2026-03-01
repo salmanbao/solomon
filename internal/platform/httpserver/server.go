@@ -33,6 +33,7 @@ import (
 	productservice "solomon/contexts/community-experience/product-service"
 	productdomainerrors "solomon/contexts/community-experience/product-service/domain/errors"
 	producthttp "solomon/contexts/community-experience/product-service/transport/http"
+	storefrontservice "solomon/contexts/community-experience/storefront-service"
 	subscriptionservice "solomon/contexts/community-experience/subscription-service"
 	authorization "solomon/contexts/identity-access/authorization-service"
 	authzerrors "solomon/contexts/identity-access/authorization-service/domain/errors"
@@ -61,6 +62,7 @@ type Server struct {
 	chat            chatservice.Module
 	communityHealth communityhealthservice.Module
 	product         productservice.Module
+	storefront      storefrontservice.Module
 	subscription    subscriptionservice.Module
 	onboarding      onboardingservice.Module
 	superAdmin      superadmindashboard.Module
@@ -96,6 +98,7 @@ func New(
 		chat:            chatservice.NewInMemoryModule(logger),
 		communityHealth: communityhealthservice.NewInMemoryModule(logger),
 		product:         productservice.NewInMemoryModule(logger),
+		storefront:      storefrontservice.NewInMemoryModule(logger),
 		subscription:    subscriptionservice.NewInMemoryModule(logger),
 		onboarding:      onboardingservice.NewInMemoryModule(logger),
 		superAdmin:      superadmindashboard.NewInMemoryModule(logger),
@@ -190,6 +193,15 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/v1/search", s.handleProductSearch)
 	s.mux.HandleFunc("GET /api/v1/users/{user_id}/data-export", s.handleProductUserDataExport)
 	s.mux.HandleFunc("POST /api/v1/users/{user_id}/delete-account", s.handleProductDeleteAccount)
+
+	// M92
+	s.mux.HandleFunc("POST /storefronts", s.handleStorefrontCreate)
+	s.mux.HandleFunc("PATCH /storefronts/{storefrontId}", s.handleStorefrontUpdate)
+	s.mux.HandleFunc("GET /storefronts/{identifier}", s.handleStorefrontGet)
+	s.mux.HandleFunc("POST /storefronts/{storefrontId}/publish", s.handleStorefrontPublish)
+	s.mux.HandleFunc("POST /storefronts/{storefrontId}/reports", s.handleStorefrontReport)
+	s.mux.HandleFunc("POST /api/storefront/v1/internal/events/product-published", s.handleStorefrontProductPublishedEvent)
+	s.mux.HandleFunc("POST /api/storefront/v1/internal/projections/subscriptions", s.handleStorefrontSubscriptionProjection)
 
 	// M46
 	s.mux.HandleFunc("POST /api/v1/chat/messages", s.handleChatPostMessage)
