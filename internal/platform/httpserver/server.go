@@ -33,12 +33,14 @@ import (
 	productservice "solomon/contexts/community-experience/product-service"
 	productdomainerrors "solomon/contexts/community-experience/product-service/domain/errors"
 	producthttp "solomon/contexts/community-experience/product-service/transport/http"
+	subscriptionservice "solomon/contexts/community-experience/subscription-service"
 	authorization "solomon/contexts/identity-access/authorization-service"
 	authzerrors "solomon/contexts/identity-access/authorization-service/domain/errors"
 	authzhttp "solomon/contexts/identity-access/authorization-service/transport/http"
 	superadmindashboard "solomon/contexts/internal-ops/super-admin-dashboard"
 	superadmindomainerrors "solomon/contexts/internal-ops/super-admin-dashboard/domain/errors"
 	superadminhttp "solomon/contexts/internal-ops/super-admin-dashboard/transport/http"
+	teammanagementservice "solomon/contexts/internal-ops/team-management-service"
 
 	httpSwagger "github.com/swaggo/http-swagger"
 	_ "solomon/internal/platform/httpserver/docs"
@@ -58,7 +60,9 @@ type Server struct {
 	chat            chatservice.Module
 	communityHealth communityhealthservice.Module
 	product         productservice.Module
+	subscription    subscriptionservice.Module
 	superAdmin      superadmindashboard.Module
+	teamManagement  teammanagementservice.Module
 }
 
 func New(
@@ -90,7 +94,9 @@ func New(
 		chat:            chatservice.NewInMemoryModule(logger),
 		communityHealth: communityhealthservice.NewInMemoryModule(logger),
 		product:         productservice.NewInMemoryModule(logger),
+		subscription:    subscriptionservice.NewInMemoryModule(logger),
 		superAdmin:      superadmindashboard.NewInMemoryModule(logger),
+		teamManagement:  teammanagementservice.NewInMemoryModule(logger),
 	}
 	s.registerRoutes()
 	s.httpServer = &http.Server{
@@ -207,6 +213,29 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /webhooks/chat/message", s.handleCommunityHealthWebhook)
 	s.mux.HandleFunc("GET /api/v1/community-health/{server_id}/health-score", s.handleCommunityHealthGetScore)
 	s.mux.HandleFunc("GET /api/v1/community-health/{server_id}/user-risk/{user_id}", s.handleCommunityHealthGetUserRisk)
+
+	// M61
+	s.mux.HandleFunc("POST /api/v1/subscriptions", s.handleSubscriptionCreate)
+	s.mux.HandleFunc("POST /api/v1/subscriptions/{subscription_id}/change-plan", s.handleSubscriptionChangePlan)
+	s.mux.HandleFunc("POST /api/v1/subscriptions/{subscription_id}/cancel", s.handleSubscriptionCancel)
+
+	// M87
+	s.mux.HandleFunc("POST /teams", s.handleTeamCreate)
+	s.mux.HandleFunc("POST /teams/{teamId}/invites", s.handleTeamCreateInvite)
+	s.mux.HandleFunc("POST /teams/invites/{token}/accept", s.handleTeamAcceptInvite)
+	s.mux.HandleFunc("POST /teams/{teamId}/members/{memberId}/role", s.handleTeamUpdateMemberRole)
+	s.mux.HandleFunc("DELETE /teams/{teamId}/members/{memberId}", s.handleTeamRemoveMember)
+	s.mux.HandleFunc("GET /teams/{teamId}", s.handleTeamGet)
+	s.mux.HandleFunc("GET /teams/{teamId}/membership", s.handleTeamMembership)
+	s.mux.HandleFunc("GET /teams/{teamId}/audit-logs", s.handleTeamAuditLogs)
+	s.mux.HandleFunc("GET /teams/{teamId}/exports/members", s.handleTeamExportMembers)
+
+	// M87 delegated path compatibility
+	s.mux.HandleFunc("POST /v1/team", s.handleTeamCreate)
+	s.mux.HandleFunc("POST /v1/team/{team_id}/invites", s.handleTeamCreateInviteV1)
+	s.mux.HandleFunc("POST /v1/team/invites/{invite_id}/accept", s.handleTeamAcceptInviteV1)
+	s.mux.HandleFunc("PUT /v1/team/{team_id}/members/{member_id}/role", s.handleTeamUpdateMemberRoleV1)
+	s.mux.HandleFunc("DELETE /v1/team/{team_id}/members/{member_id}", s.handleTeamRemoveMemberV1)
 
 	// M04
 	s.mux.HandleFunc("POST /v1/campaigns", s.handleCampaignCreate)
