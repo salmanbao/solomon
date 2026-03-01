@@ -29,6 +29,7 @@ import (
 	chatservice "solomon/contexts/community-experience/chat-service"
 	chatdomainerrors "solomon/contexts/community-experience/chat-service/domain/errors"
 	chathttp "solomon/contexts/community-experience/chat-service/transport/http"
+	communityhealthservice "solomon/contexts/community-experience/community-health-service"
 	productservice "solomon/contexts/community-experience/product-service"
 	productdomainerrors "solomon/contexts/community-experience/product-service/domain/errors"
 	producthttp "solomon/contexts/community-experience/product-service/transport/http"
@@ -44,19 +45,20 @@ import (
 )
 
 type Server struct {
-	mux           *http.ServeMux
-	logger        *slog.Logger
-	addr          string
-	httpServer    *http.Server
-	marketplace   contentlibrarymarketplace.Module
-	authorization authorization.Module
-	campaign      campaignservice.Module
-	submission    submissionservice.Module
-	distribution  distributionservice.Module
-	voting        votingengine.Module
-	chat          chatservice.Module
-	product       productservice.Module
-	superAdmin    superadmindashboard.Module
+	mux             *http.ServeMux
+	logger          *slog.Logger
+	addr            string
+	httpServer      *http.Server
+	marketplace     contentlibrarymarketplace.Module
+	authorization   authorization.Module
+	campaign        campaignservice.Module
+	submission      submissionservice.Module
+	distribution    distributionservice.Module
+	voting          votingengine.Module
+	chat            chatservice.Module
+	communityHealth communityhealthservice.Module
+	product         productservice.Module
+	superAdmin      superadmindashboard.Module
 }
 
 func New(
@@ -76,18 +78,19 @@ func New(
 		addr = ":8080"
 	}
 	s := &Server{
-		mux:           http.NewServeMux(),
-		logger:        logger,
-		addr:          addr,
-		marketplace:   marketplace,
-		authorization: authorizationModule,
-		campaign:      campaignModule,
-		submission:    submissionModule,
-		distribution:  distributionModule,
-		voting:        votingModule,
-		chat:          chatservice.NewInMemoryModule(logger),
-		product:       productservice.NewInMemoryModule(logger),
-		superAdmin:    superadmindashboard.NewInMemoryModule(logger),
+		mux:             http.NewServeMux(),
+		logger:          logger,
+		addr:            addr,
+		marketplace:     marketplace,
+		authorization:   authorizationModule,
+		campaign:        campaignModule,
+		submission:      submissionModule,
+		distribution:    distributionModule,
+		voting:          votingModule,
+		chat:            chatservice.NewInMemoryModule(logger),
+		communityHealth: communityhealthservice.NewInMemoryModule(logger),
+		product:         productservice.NewInMemoryModule(logger),
+		superAdmin:      superadmindashboard.NewInMemoryModule(logger),
 	}
 	s.registerRoutes()
 	s.httpServer = &http.Server{
@@ -199,6 +202,11 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("PUT /api/v1/chat/servers/{server_id}/moderators", s.handleChatUpdateModerators)
 	s.mux.HandleFunc("POST /api/v1/chat/users/{user_id}/mute", s.handleChatMuteUser)
 	s.mux.HandleFunc("POST /api/v1/chat/export", s.handleChatExport)
+
+	// M49
+	s.mux.HandleFunc("POST /webhooks/chat/message", s.handleCommunityHealthWebhook)
+	s.mux.HandleFunc("GET /api/v1/community-health/{server_id}/health-score", s.handleCommunityHealthGetScore)
+	s.mux.HandleFunc("GET /api/v1/community-health/{server_id}/user-risk/{user_id}", s.handleCommunityHealthGetUserRisk)
 
 	// M04
 	s.mux.HandleFunc("POST /v1/campaigns", s.handleCampaignCreate)
