@@ -18,11 +18,20 @@ type AutoApproveJob struct {
 	IDGen       ports.IDGenerator
 	Outbox      ports.OutboxWriter
 	BatchSize   int
+	Disabled    bool
 	Logger      *slog.Logger
 }
 
 func (j AutoApproveJob) RunOnce(ctx context.Context) error {
 	logger := application.ResolveLogger(j.Logger)
+	if j.Disabled {
+		logger.Info("submission auto-approve job disabled by feature flag",
+			"event", "submission_auto_approve_disabled",
+			"module", "campaign-editorial/submission-service",
+			"layer", "worker",
+		)
+		return nil
+	}
 	now := time.Now().UTC()
 	if j.Clock != nil {
 		now = j.Clock.Now().UTC()

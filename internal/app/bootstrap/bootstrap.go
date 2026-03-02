@@ -265,6 +265,7 @@ func BuildWorker() (*WorkerApp, error) {
 			Clock:         campaignpostgres.SystemClock{},
 			ConsumerGroup: "campaign-service-submission-created-cg",
 			DedupTTL:      7 * 24 * time.Hour,
+			Disabled:      !cfg.EnableM04SubmissionProjection,
 			Logger:        logger,
 		},
 		submissionOutbox: submissionworkers.OutboxRelay{
@@ -289,6 +290,7 @@ func BuildWorker() (*WorkerApp, error) {
 			IDGen:       submissionpostgres.UUIDGenerator{},
 			Outbox:      submissionRepo,
 			BatchSize:   100,
+			Disabled:    !cfg.EnableM26AutoApprove,
 			Logger:      logger,
 		},
 		submissionViewLock: submissionworkers.ViewLockJob{
@@ -299,12 +301,14 @@ func BuildWorker() (*WorkerApp, error) {
 			Outbox:          submissionRepo,
 			BatchSize:       100,
 			PlatformFeeRate: 0.15,
+			Disabled:        !cfg.EnableM26ViewLock,
 			Logger:          logger,
 		},
 		campaignDeadlineJob: campaignworkers.DeadlineCompleter{
 			Campaigns: campaignRepo,
 			Clock:     campaignpostgres.SystemClock{},
 			BatchSize: 100,
+			Disabled:  !cfg.EnableM04DeadlineCompletion,
 			Logger:    logger,
 		},
 		authzOutbox: authworkers.OutboxRelay{
@@ -330,6 +334,7 @@ func BuildWorker() (*WorkerApp, error) {
 			IDGen:         votingpostgres.UUIDGenerator{},
 			ConsumerGroup: "voting-engine-submission-cg",
 			DedupTTL:      7 * 24 * time.Hour,
+			Disabled:      !cfg.EnableM08SubmissionConsumer,
 			Logger:        logger,
 		},
 		votingCampaign: votingworkers.CampaignStateConsumer{
@@ -341,6 +346,7 @@ func BuildWorker() (*WorkerApp, error) {
 			IDGen:         votingpostgres.UUIDGenerator{},
 			ConsumerGroup: "voting-engine-campaign-cg",
 			DedupTTL:      7 * 24 * time.Hour,
+			Disabled:      !cfg.EnableM08CampaignConsumer,
 			Logger:        logger,
 		},
 		pollInterval: 500 * time.Millisecond,

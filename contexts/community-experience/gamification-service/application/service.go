@@ -16,12 +16,13 @@ import (
 )
 
 type Service struct {
-	Repo           ports.Repository
-	Idempotency    ports.IdempotencyStore
-	Clock          ports.Clock
-	IDGen          ports.IDGenerator
-	IdempotencyTTL time.Duration
-	Logger         *slog.Logger
+	Repo                  ports.Repository
+	Idempotency           ports.IdempotencyStore
+	Clock                 ports.Clock
+	IDGen                 ports.IDGenerator
+	IdempotencyTTL        time.Duration
+	DisableTierMultiplier bool
+	Logger                *slog.Logger
 }
 
 type AwardPointsResult struct {
@@ -81,6 +82,9 @@ func (s Service) AwardPoints(
 	}
 
 	multiplier := multiplierForTier(projection.ReputationTier)
+	if s.DisableTierMultiplier {
+		multiplier = 1.0
+	}
 	finalPoints := int(math.Round(float64(input.Points) * multiplier))
 	if finalPoints < 1 {
 		finalPoints = 1

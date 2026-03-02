@@ -16,22 +16,24 @@ type Module struct {
 }
 
 type Dependencies struct {
-	Repository     ports.Repository
-	Idempotency    ports.IdempotencyStore
-	Clock          ports.Clock
-	IDGenerator    ports.IDGenerator
-	IdempotencyTTL time.Duration
-	Logger         *slog.Logger
+	Repository            ports.Repository
+	Idempotency           ports.IdempotencyStore
+	Clock                 ports.Clock
+	IDGenerator           ports.IDGenerator
+	IdempotencyTTL        time.Duration
+	DisableTierMultiplier bool
+	Logger                *slog.Logger
 }
 
 func NewModule(deps Dependencies) Module {
 	service := application.Service{
-		Repo:           deps.Repository,
-		Idempotency:    deps.Idempotency,
-		Clock:          deps.Clock,
-		IDGen:          deps.IDGenerator,
-		IdempotencyTTL: deps.IdempotencyTTL,
-		Logger:         deps.Logger,
+		Repo:                  deps.Repository,
+		Idempotency:           deps.Idempotency,
+		Clock:                 deps.Clock,
+		IDGen:                 deps.IDGenerator,
+		IdempotencyTTL:        deps.IdempotencyTTL,
+		DisableTierMultiplier: deps.DisableTierMultiplier,
+		Logger:                deps.Logger,
 	}
 	return Module{
 		Handler: httpadapter.Handler{

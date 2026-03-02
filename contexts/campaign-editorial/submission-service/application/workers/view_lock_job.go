@@ -19,11 +19,20 @@ type ViewLockJob struct {
 	Outbox          ports.OutboxWriter
 	BatchSize       int
 	PlatformFeeRate float64
+	Disabled        bool
 	Logger          *slog.Logger
 }
 
 func (j ViewLockJob) RunOnce(ctx context.Context) error {
 	logger := application.ResolveLogger(j.Logger)
+	if j.Disabled {
+		logger.Info("submission view-lock job disabled by feature flag",
+			"event", "submission_view_lock_disabled",
+			"module", "campaign-editorial/submission-service",
+			"layer", "worker",
+		)
+		return nil
+	}
 	now := time.Now().UTC()
 	if j.Clock != nil {
 		now = j.Clock.Now().UTC()

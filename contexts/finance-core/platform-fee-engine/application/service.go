@@ -15,16 +15,17 @@ import (
 )
 
 type Service struct {
-	Repo           ports.Repository
-	Idempotency    ports.IdempotencyStore
-	EventDedup     ports.EventDedupStore
-	Outbox         ports.OutboxWriter
-	Clock          ports.Clock
-	IDGen          ports.IDGenerator
-	IdempotencyTTL time.Duration
-	EventDedupTTL  time.Duration
-	DefaultFeeRate float64
-	Logger         *slog.Logger
+	Repo                              ports.Repository
+	Idempotency                       ports.IdempotencyStore
+	EventDedup                        ports.EventDedupStore
+	Outbox                            ports.OutboxWriter
+	Clock                             ports.Clock
+	IDGen                             ports.IDGenerator
+	IdempotencyTTL                    time.Duration
+	EventDedupTTL                     time.Duration
+	DefaultFeeRate                    float64
+	DisableFeeCalculatedEventEmission bool
+	Logger                            *slog.Logger
 }
 
 func (s Service) CalculateFee(
@@ -198,7 +199,7 @@ func (s Service) MonthlyReport(ctx context.Context, month string) (ports.FeeRepo
 }
 
 func (s Service) appendFeeCalculatedOutbox(ctx context.Context, calculation ports.FeeCalculation) error {
-	if s.Outbox == nil {
+	if s.Outbox == nil || s.DisableFeeCalculatedEventEmission {
 		return nil
 	}
 	eventID, err := s.IDGen.NewID(ctx)

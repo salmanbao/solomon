@@ -14,11 +14,20 @@ type DeadlineCompleter struct {
 	Campaigns ports.DeadlineRepository
 	Clock     ports.Clock
 	BatchSize int
+	Disabled  bool
 	Logger    *slog.Logger
 }
 
 func (j DeadlineCompleter) RunOnce(ctx context.Context) error {
 	logger := application.ResolveLogger(j.Logger)
+	if j.Disabled {
+		logger.Info("deadline completion sweep disabled by feature flag",
+			"event", "campaign_deadline_completion_disabled",
+			"module", "campaign-editorial/campaign-service",
+			"layer", "worker",
+		)
+		return nil
+	}
 	now := time.Now().UTC()
 	if j.Clock != nil {
 		now = j.Clock.Now().UTC()

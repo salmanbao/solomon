@@ -29,6 +29,7 @@ type CampaignStateConsumer struct {
 	IDGen         ports.IDGenerator
 	ConsumerGroup string
 	DedupTTL      time.Duration
+	Disabled      bool
 	Logger        *slog.Logger
 }
 
@@ -36,6 +37,14 @@ type CampaignStateConsumer struct {
 // The consumer group can be overridden for environment-specific deployment.
 func (c CampaignStateConsumer) Start(ctx context.Context) error {
 	logger := application.ResolveLogger(c.Logger)
+	if c.Disabled {
+		logger.Info("campaign state consumer disabled by feature flag",
+			"event", "voting_campaign_consumer_disabled",
+			"module", "campaign-editorial/voting-engine",
+			"layer", "worker",
+		)
+		return nil
+	}
 	group := strings.TrimSpace(c.ConsumerGroup)
 	if group == "" {
 		group = defaultCampaignCG

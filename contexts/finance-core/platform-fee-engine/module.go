@@ -16,30 +16,32 @@ type Module struct {
 }
 
 type Dependencies struct {
-	Repository     ports.Repository
-	Idempotency    ports.IdempotencyStore
-	EventDedup     ports.EventDedupStore
-	Outbox         ports.OutboxWriter
-	Clock          ports.Clock
-	IDGenerator    ports.IDGenerator
-	IdempotencyTTL time.Duration
-	EventDedupTTL  time.Duration
-	DefaultFeeRate float64
-	Logger         *slog.Logger
+	Repository                        ports.Repository
+	Idempotency                       ports.IdempotencyStore
+	EventDedup                        ports.EventDedupStore
+	Outbox                            ports.OutboxWriter
+	Clock                             ports.Clock
+	IDGenerator                       ports.IDGenerator
+	IdempotencyTTL                    time.Duration
+	EventDedupTTL                     time.Duration
+	DefaultFeeRate                    float64
+	DisableFeeCalculatedEventEmission bool
+	Logger                            *slog.Logger
 }
 
 func NewModule(deps Dependencies) Module {
 	service := application.Service{
-		Repo:           deps.Repository,
-		Idempotency:    deps.Idempotency,
-		EventDedup:     deps.EventDedup,
-		Outbox:         deps.Outbox,
-		Clock:          deps.Clock,
-		IDGen:          deps.IDGenerator,
-		IdempotencyTTL: deps.IdempotencyTTL,
-		EventDedupTTL:  deps.EventDedupTTL,
-		DefaultFeeRate: deps.DefaultFeeRate,
-		Logger:         deps.Logger,
+		Repo:                              deps.Repository,
+		Idempotency:                       deps.Idempotency,
+		EventDedup:                        deps.EventDedup,
+		Outbox:                            deps.Outbox,
+		Clock:                             deps.Clock,
+		IDGen:                             deps.IDGenerator,
+		IdempotencyTTL:                    deps.IdempotencyTTL,
+		EventDedupTTL:                     deps.EventDedupTTL,
+		DefaultFeeRate:                    deps.DefaultFeeRate,
+		DisableFeeCalculatedEventEmission: deps.DisableFeeCalculatedEventEmission,
+		Logger:                            deps.Logger,
 	}
 	return Module{
 		Handler: httpadapter.Handler{

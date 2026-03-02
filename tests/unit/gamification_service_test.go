@@ -3,8 +3,10 @@ package unit
 import (
 	"context"
 	"testing"
+	"time"
 
 	gamificationservice "solomon/contexts/community-experience/gamification-service"
+	gamificationmemory "solomon/contexts/community-experience/gamification-service/adapters/memory"
 	"solomon/contexts/community-experience/gamification-service/ports"
 	httptransport "solomon/contexts/community-experience/gamification-service/transport/http"
 )
@@ -106,5 +108,34 @@ func TestGamificationBadgeAndLeaderboardFlow(t *testing.T) {
 	}
 	if leaderboard.Data[0].UserID != "user-gam-3" {
 		t.Fatalf("expected user-gam-3 ranked first, got %s", leaderboard.Data[0].UserID)
+	}
+}
+
+func TestGamificationCanDisableTierMultiplier(t *testing.T) {
+	storeSeed := []ports.UserProjection{
+		{UserID: "user-gam-flag", AuthActive: true, ProfileExists: true, ReputationTier: "gold"},
+	}
+	store := gamificationmemory.NewStore(storeSeed)
+	module := gamificationservice.NewModule(gamificationservice.Dependencies{
+		Repository:            store,
+		Idempotency:           store,
+		Clock:                 store,
+		IDGenerator:           store,
+		IdempotencyTTL:        7 * 24 * time.Hour,
+		DisableTierMultiplier: true,
+	})
+	ctx := context.Background()
+
+	resp, err := module.Handler.AwardPointsHandler(ctx, "idem-gam-flag-1", httptransport.AwardPointsRequest{
+		UserID:     "user-gam-flag",
+		ActionType: "submission_created",
+		Points:     10,
+		Reason:     "flag test",
+	})
+	if err != nil {
+		t.Fatalf("award points failed: %v", err)
+	}
+	if resp.Data.TotalPoints != 10 {
+		t.Fatalf("expected total points without multiplier to be 10, got %d", resp.Data.TotalPoints)
 	}
 }

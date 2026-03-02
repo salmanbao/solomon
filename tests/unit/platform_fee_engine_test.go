@@ -8,6 +8,7 @@ import (
 	"time"
 
 	platformfeeengine "solomon/contexts/finance-core/platform-fee-engine"
+	"solomon/contexts/finance-core/platform-fee-engine/adapters/memory"
 	httptransport "solomon/contexts/finance-core/platform-fee-engine/transport/http"
 )
 
@@ -98,5 +99,43 @@ func TestPlatformFeeConsumeRewardPayoutEligibleProducesCanonicalOutboxEvent(t *t
 	}
 	if !found {
 		t.Fatalf("expected fee.calculated event in outbox")
+	}
+}
+
+func TestPlatformFeeCanDisableFeeCalculatedEventEmission(t *testing.T) {
+	store := memory.NewStore()
+	module := platformfeeengine.NewModule(platformfeeengine.Dependencies{
+		Repository:                        store,
+		Idempotency:                       store,
+		EventDedup:                        store,
+		Outbox:                            store,
+		Clock:                             store,
+		IDGenerator:                       store,
+		IdempotencyTTL:                    7 * 24 * time.Hour,
+		EventDedupTTL:                     7 * 24 * time.Hour,
+		DefaultFeeRate:                    0.15,
+		DisableFeeCalculatedEventEmission: true,
+	})
+	module.Store = store
+
+	ctx := context.Background()
+	now := time.Now().UTC().Format(time.RFC3339)
+	if _, err := module.Handler.ConsumeRewardPayoutEligibleEventHandler(ctx, httptransport.RewardPayoutEligibleEventRequest{
+		EventID:      "evt-reward-eligible-disabled",
+		SubmissionID: "sub-fee-disabled",
+		UserID:       "user-fee-disabled",
+		CampaignID:   "campaign-fee-disabled",
+		GrossAmount:  25.0,
+		EligibleAt:   now,
+	}); err != nil {
+		t.Fatalf("consume reward.payout_eligible failed: %v", err)
+	}
+
+	outbox, err := module.Store.ListPendingOutbox(ctx, 50)
+	if err != nil {
+		t.Fatalf("list outbox failed: %v", err)
+	}
+	if len(outbox) != 0 {
+		t.Fatalf("expected no outbox events when fee-calculated emission disabled, got %d", len(outbox))
 	}
 }

@@ -27,10 +27,20 @@ type SubmissionCreatedConsumer struct {
 	Clock         ports.Clock
 	ConsumerGroup string
 	DedupTTL      time.Duration
+	Disabled      bool
 	Logger        *slog.Logger
 }
 
 func (c SubmissionCreatedConsumer) Start(ctx context.Context) error {
+	logger := application.ResolveLogger(c.Logger)
+	if c.Disabled {
+		logger.Info("submission.created consumer disabled by feature flag",
+			"event", "campaign_submission_created_consumer_disabled",
+			"module", "campaign-editorial/campaign-service",
+			"layer", "worker",
+		)
+		return nil
+	}
 	group := strings.TrimSpace(c.ConsumerGroup)
 	if group == "" {
 		group = defaultSubmissionConsumerGroup

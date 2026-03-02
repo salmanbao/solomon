@@ -179,3 +179,38 @@ func TestVotingCampaignCompletedConsumerClosesRoundAndEmitsEvent(t *testing.T) {
 		t.Fatalf("expected voting_round.closed event in outbox")
 	}
 }
+
+func TestVotingConsumersCanBeDisabledByFeatureFlags(t *testing.T) {
+	store := votingmemory.NewStore(nil)
+	sub := &votingStubSubscriber{}
+
+	submissionConsumer := votingworkers.SubmissionLifecycleConsumer{
+		Subscriber: sub,
+		Dedup:      store,
+		Votes:      store,
+		Outbox:     store,
+		Clock:      fixedClock{now: time.Now().UTC()},
+		IDGen:      store,
+		Disabled:   true,
+	}
+	if err := submissionConsumer.Start(context.Background()); err != nil {
+		t.Fatalf("start disabled submission consumer failed: %v", err)
+	}
+
+	campaignConsumer := votingworkers.CampaignStateConsumer{
+		Subscriber: sub,
+		Dedup:      store,
+		Votes:      store,
+		Outbox:     store,
+		Clock:      fixedClock{now: time.Now().UTC()},
+		IDGen:      store,
+		Disabled:   true,
+	}
+	if err := campaignConsumer.Start(context.Background()); err != nil {
+		t.Fatalf("start disabled campaign consumer failed: %v", err)
+	}
+
+	if len(sub.handlers) != 0 {
+		t.Fatalf("expected no subscribed handlers when consumers are disabled")
+	}
+}

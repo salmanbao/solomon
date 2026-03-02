@@ -28,12 +28,21 @@ type SubmissionLifecycleConsumer struct {
 	IDGen         ports.IDGenerator
 	ConsumerGroup string
 	DedupTTL      time.Duration
+	Disabled      bool
 	Logger        *slog.Logger
 }
 
 // Start subscribes M08 to submission lifecycle events with dedupe semantics.
 func (c SubmissionLifecycleConsumer) Start(ctx context.Context) error {
 	logger := application.ResolveLogger(c.Logger)
+	if c.Disabled {
+		logger.Info("submission lifecycle consumer disabled by feature flag",
+			"event", "voting_submission_consumer_disabled",
+			"module", "campaign-editorial/voting-engine",
+			"layer", "worker",
+		)
+		return nil
+	}
 	group := strings.TrimSpace(c.ConsumerGroup)
 	if group == "" {
 		group = defaultSubmissionCG

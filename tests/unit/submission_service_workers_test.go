@@ -155,3 +155,41 @@ func TestSubmissionWorkerAutoApproveAndViewLock(t *testing.T) {
 		t.Fatalf("expected submission.view_locked event")
 	}
 }
+
+func TestSubmissionWorkerJobsCanBeDisabledByFeatureFlags(t *testing.T) {
+	now := time.Date(2026, 2, 25, 12, 0, 0, 0, time.UTC)
+	store := memory.NewStore([]entities.Submission{
+		{
+			SubmissionID: "submission-disabled",
+			CampaignID:   "campaign-disabled",
+			CreatorID:    "creator-disabled",
+			Platform:     "tiktok",
+			PostURL:      "https://tiktok.com/@creator/video/disabled",
+			Status:       entities.SubmissionStatusPending,
+			CreatedAt:    now.Add(-72 * time.Hour),
+			UpdatedAt:    now.Add(-72 * time.Hour),
+			CpvRate:      0.2,
+		},
+	})
+
+	auto := submissionworkers.AutoApproveJob{
+		Repository:  store,
+		AutoApprove: store,
+		Clock:       fixedClock{now: now},
+		IDGen:       store,
+		Outbox:      store,
+		BatchSize:   100,
+		Disabled:    true,
+	}
+	if err := auto.RunOnce(context.Background()); err != nil {
+		t.Fatalf("auto approve run failed: %v", err)
+	}
+
+	current, err := store.GetSubmission(context.Background(), "submission-disabled")
+	if err != nil {
+		t.Fatalf("get submission failed: %v", err)
+	}
+	if current.Status != entities.SubmissionStatusPending {
+		t.Fatalf("expected pending status when auto-approve disabled, got %s", current.Status)
+	}
+}
