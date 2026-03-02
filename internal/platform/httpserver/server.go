@@ -22,6 +22,8 @@ import (
 	distributionservice "solomon/contexts/campaign-editorial/distribution-service"
 	distributionerrors "solomon/contexts/campaign-editorial/distribution-service/domain/errors"
 	distributionhttp "solomon/contexts/campaign-editorial/distribution-service/transport/http"
+	editordashboardservice "solomon/contexts/campaign-editorial/editor-dashboard-service"
+	influencerdashboardservice "solomon/contexts/campaign-editorial/influencer-dashboard-service"
 	submissionservice "solomon/contexts/campaign-editorial/submission-service"
 	submissionerrors "solomon/contexts/campaign-editorial/submission-service/domain/errors"
 	submissionhttp "solomon/contexts/campaign-editorial/submission-service/transport/http"
@@ -46,33 +48,37 @@ import (
 	superadmindomainerrors "solomon/contexts/internal-ops/super-admin-dashboard/domain/errors"
 	superadminhttp "solomon/contexts/internal-ops/super-admin-dashboard/transport/http"
 	teammanagementservice "solomon/contexts/internal-ops/team-management-service"
+	moderationservice "solomon/contexts/moderation-safety/moderation-service"
 
 	httpSwagger "github.com/swaggo/http-swagger"
 	_ "solomon/internal/platform/httpserver/docs"
 )
 
 type Server struct {
-	mux               *http.ServeMux
-	logger            *slog.Logger
-	addr              string
-	httpServer        *http.Server
-	marketplace       contentlibrarymarketplace.Module
-	authorization     authorization.Module
-	campaign          campaignservice.Module
-	campaignDiscovery campaigndiscoveryservice.Module
-	clippingTool      clippingtoolservice.Module
-	submission        submissionservice.Module
-	distribution      distributionservice.Module
-	voting            votingengine.Module
-	chat              chatservice.Module
-	reputation        reputationservice.Module
-	communityHealth   communityhealthservice.Module
-	product           productservice.Module
-	storefront        storefrontservice.Module
-	subscription      subscriptionservice.Module
-	onboarding        onboardingservice.Module
-	superAdmin        superadmindashboard.Module
-	teamManagement    teammanagementservice.Module
+	mux                 *http.ServeMux
+	logger              *slog.Logger
+	addr                string
+	httpServer          *http.Server
+	marketplace         contentlibrarymarketplace.Module
+	authorization       authorization.Module
+	campaign            campaignservice.Module
+	campaignDiscovery   campaigndiscoveryservice.Module
+	clippingTool        clippingtoolservice.Module
+	editorDashboard     editordashboardservice.Module
+	influencerDashboard influencerdashboardservice.Module
+	submission          submissionservice.Module
+	distribution        distributionservice.Module
+	voting              votingengine.Module
+	moderation          moderationservice.Module
+	chat                chatservice.Module
+	reputation          reputationservice.Module
+	communityHealth     communityhealthservice.Module
+	product             productservice.Module
+	storefront          storefrontservice.Module
+	subscription        subscriptionservice.Module
+	onboarding          onboardingservice.Module
+	superAdmin          superadmindashboard.Module
+	teamManagement      teammanagementservice.Module
 }
 
 func New(
@@ -92,26 +98,29 @@ func New(
 		addr = ":8080"
 	}
 	s := &Server{
-		mux:               http.NewServeMux(),
-		logger:            logger,
-		addr:              addr,
-		marketplace:       marketplace,
-		authorization:     authorizationModule,
-		campaign:          campaignModule,
-		campaignDiscovery: campaigndiscoveryservice.NewInMemoryModule(logger),
-		clippingTool:      clippingtoolservice.NewInMemoryModule(logger),
-		submission:        submissionModule,
-		distribution:      distributionModule,
-		voting:            votingModule,
-		chat:              chatservice.NewInMemoryModule(logger),
-		reputation:        reputationservice.NewInMemoryModule(logger),
-		communityHealth:   communityhealthservice.NewInMemoryModule(logger),
-		product:           productservice.NewInMemoryModule(logger),
-		storefront:        storefrontservice.NewInMemoryModule(logger),
-		subscription:      subscriptionservice.NewInMemoryModule(logger),
-		onboarding:        onboardingservice.NewInMemoryModule(logger),
-		superAdmin:        superadmindashboard.NewInMemoryModule(logger),
-		teamManagement:    teammanagementservice.NewInMemoryModule(logger),
+		mux:                 http.NewServeMux(),
+		logger:              logger,
+		addr:                addr,
+		marketplace:         marketplace,
+		authorization:       authorizationModule,
+		campaign:            campaignModule,
+		campaignDiscovery:   campaigndiscoveryservice.NewInMemoryModule(logger),
+		clippingTool:        clippingtoolservice.NewInMemoryModule(logger),
+		editorDashboard:     editordashboardservice.NewInMemoryModule(logger),
+		influencerDashboard: influencerdashboardservice.NewInMemoryModule(logger),
+		submission:          submissionModule,
+		distribution:        distributionModule,
+		voting:              votingModule,
+		moderation:          moderationservice.NewInMemoryModule(logger),
+		chat:                chatservice.NewInMemoryModule(logger),
+		reputation:          reputationservice.NewInMemoryModule(logger),
+		communityHealth:     communityhealthservice.NewInMemoryModule(logger),
+		product:             productservice.NewInMemoryModule(logger),
+		storefront:          storefrontservice.NewInMemoryModule(logger),
+		subscription:        subscriptionservice.NewInMemoryModule(logger),
+		onboarding:          onboardingservice.NewInMemoryModule(logger),
+		superAdmin:          superadmindashboard.NewInMemoryModule(logger),
+		teamManagement:      teammanagementservice.NewInMemoryModule(logger),
 	}
 	s.registerRoutes()
 	s.httpServer = &http.Server{
@@ -257,6 +266,28 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/clipping/v1/projects/{project_id}/export", s.handleClippingRequestExport)
 	s.mux.HandleFunc("GET /api/clipping/v1/projects/{project_id}/export/{export_id}/status", s.handleClippingGetExportStatus)
 	s.mux.HandleFunc("POST /api/clipping/v1/projects/{project_id}/submit", s.handleClippingSubmit)
+
+	// M07
+	s.mux.HandleFunc("GET /v1/editor/feed", s.handleEditorFeed)
+	s.mux.HandleFunc("GET /v1/editor/campaigns/feed", s.handleEditorFeed)
+	s.mux.HandleFunc("GET /v1/editor/dashboard/summary", s.handleEditorSummary)
+	s.mux.HandleFunc("GET /v1/editor/submissions", s.handleEditorSubmissions)
+	s.mux.HandleFunc("GET /v1/editor/earnings", s.handleEditorEarnings)
+	s.mux.HandleFunc("GET /v1/editor/performance", s.handleEditorPerformance)
+	s.mux.HandleFunc("GET /v1/editor/submissions/export", s.handleEditorSubmissionsExport)
+	s.mux.HandleFunc("POST /v1/editor/campaigns/{id}/save", s.handleEditorSaveCampaign)
+	s.mux.HandleFunc("DELETE /v1/editor/campaigns/{id}/save", s.handleEditorRemoveSavedCampaign)
+
+	// M34
+	s.mux.HandleFunc("GET /api/v1/dashboard/summary", s.handleInfluencerSummary)
+	s.mux.HandleFunc("GET /api/v1/dashboard/content", s.handleInfluencerContent)
+	s.mux.HandleFunc("POST /api/v1/goals", s.handleInfluencerCreateGoal)
+
+	// M35
+	s.mux.HandleFunc("GET /api/moderation/queue", s.handleModerationQueue)
+	s.mux.HandleFunc("POST /api/moderation/approve", s.handleModerationApprove)
+	s.mux.HandleFunc("POST /api/moderation/reject", s.handleModerationReject)
+	s.mux.HandleFunc("POST /api/moderation/flag", s.handleModerationFlag)
 
 	// M61
 	s.mux.HandleFunc("POST /api/v1/subscriptions", s.handleSubscriptionCreate)
