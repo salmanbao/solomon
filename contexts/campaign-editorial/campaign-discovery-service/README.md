@@ -1,10 +1,23 @@
-# Campaign Discovery Service
+# Campaign Discovery Service (M23)
 
-Module scaffold for Solomon monolith.
+Monolith implementation for `M23-Campaign-Discovery-Service` with canonical
+dependency and ownership alignment.
 
-## Structure
-- domain/: entities, value objects, domain services, invariants
-- application/: use cases, command/query handlers, orchestration
-- ports/: repository, event, and client interfaces
-- adapters/: DB, HTTP/gRPC, event bus, cache implementations
-- transport/: module-private transport DTOs and event payload mappers
+## Dependency Alignment
+- DBR providers: `M04-Campaign-Service`, `M48-Reputation-Service`
+- Consumer-facing API surface for `M53-Discover-Service` and
+  `M58-Content-Recommendation-Engine`
+
+Provider usage is isolated behind module ports (`CampaignProjectionProvider`,
+`ReputationProjectionProvider`) so this module stays boundary-safe.
+
+## Data Ownership
+Owned tables (canonical):
+- `campaign_eligibility_cache`
+- `campaign_ranking_scores`
+- `discover_audit_log`
+- `featured_placements`
+- `user_bookmarks`
+
+Mutations (`bookmark`) enforce idempotency and return a canonical error
+envelope on failures.

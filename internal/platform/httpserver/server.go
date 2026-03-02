@@ -11,9 +11,11 @@ import (
 	"strings"
 	"time"
 
+	campaigndiscoveryservice "solomon/contexts/campaign-editorial/campaign-discovery-service"
 	campaignservice "solomon/contexts/campaign-editorial/campaign-service"
 	campaignerrors "solomon/contexts/campaign-editorial/campaign-service/domain/errors"
 	campaignhttp "solomon/contexts/campaign-editorial/campaign-service/transport/http"
+	clippingtoolservice "solomon/contexts/campaign-editorial/clipping-tool-service"
 	contentlibrarymarketplace "solomon/contexts/campaign-editorial/content-library-marketplace"
 	marketplacedomainerrors "solomon/contexts/campaign-editorial/content-library-marketplace/domain/errors"
 	marketplacehttp "solomon/contexts/campaign-editorial/content-library-marketplace/transport/http"
@@ -50,25 +52,27 @@ import (
 )
 
 type Server struct {
-	mux             *http.ServeMux
-	logger          *slog.Logger
-	addr            string
-	httpServer      *http.Server
-	marketplace     contentlibrarymarketplace.Module
-	authorization   authorization.Module
-	campaign        campaignservice.Module
-	submission      submissionservice.Module
-	distribution    distributionservice.Module
-	voting          votingengine.Module
-	chat            chatservice.Module
-	reputation      reputationservice.Module
-	communityHealth communityhealthservice.Module
-	product         productservice.Module
-	storefront      storefrontservice.Module
-	subscription    subscriptionservice.Module
-	onboarding      onboardingservice.Module
-	superAdmin      superadmindashboard.Module
-	teamManagement  teammanagementservice.Module
+	mux               *http.ServeMux
+	logger            *slog.Logger
+	addr              string
+	httpServer        *http.Server
+	marketplace       contentlibrarymarketplace.Module
+	authorization     authorization.Module
+	campaign          campaignservice.Module
+	campaignDiscovery campaigndiscoveryservice.Module
+	clippingTool      clippingtoolservice.Module
+	submission        submissionservice.Module
+	distribution      distributionservice.Module
+	voting            votingengine.Module
+	chat              chatservice.Module
+	reputation        reputationservice.Module
+	communityHealth   communityhealthservice.Module
+	product           productservice.Module
+	storefront        storefrontservice.Module
+	subscription      subscriptionservice.Module
+	onboarding        onboardingservice.Module
+	superAdmin        superadmindashboard.Module
+	teamManagement    teammanagementservice.Module
 }
 
 func New(
@@ -88,24 +92,26 @@ func New(
 		addr = ":8080"
 	}
 	s := &Server{
-		mux:             http.NewServeMux(),
-		logger:          logger,
-		addr:            addr,
-		marketplace:     marketplace,
-		authorization:   authorizationModule,
-		campaign:        campaignModule,
-		submission:      submissionModule,
-		distribution:    distributionModule,
-		voting:          votingModule,
-		chat:            chatservice.NewInMemoryModule(logger),
-		reputation:      reputationservice.NewInMemoryModule(logger),
-		communityHealth: communityhealthservice.NewInMemoryModule(logger),
-		product:         productservice.NewInMemoryModule(logger),
-		storefront:      storefrontservice.NewInMemoryModule(logger),
-		subscription:    subscriptionservice.NewInMemoryModule(logger),
-		onboarding:      onboardingservice.NewInMemoryModule(logger),
-		superAdmin:      superadmindashboard.NewInMemoryModule(logger),
-		teamManagement:  teammanagementservice.NewInMemoryModule(logger),
+		mux:               http.NewServeMux(),
+		logger:            logger,
+		addr:              addr,
+		marketplace:       marketplace,
+		authorization:     authorizationModule,
+		campaign:          campaignModule,
+		campaignDiscovery: campaigndiscoveryservice.NewInMemoryModule(logger),
+		clippingTool:      clippingtoolservice.NewInMemoryModule(logger),
+		submission:        submissionModule,
+		distribution:      distributionModule,
+		voting:            votingModule,
+		chat:              chatservice.NewInMemoryModule(logger),
+		reputation:        reputationservice.NewInMemoryModule(logger),
+		communityHealth:   communityhealthservice.NewInMemoryModule(logger),
+		product:           productservice.NewInMemoryModule(logger),
+		storefront:        storefrontservice.NewInMemoryModule(logger),
+		subscription:      subscriptionservice.NewInMemoryModule(logger),
+		onboarding:        onboardingservice.NewInMemoryModule(logger),
+		superAdmin:        superadmindashboard.NewInMemoryModule(logger),
+		teamManagement:    teammanagementservice.NewInMemoryModule(logger),
 	}
 	s.registerRoutes()
 	s.httpServer = &http.Server{
@@ -235,6 +241,22 @@ func (s *Server) registerRoutes() {
 	// M48
 	s.mux.HandleFunc("GET /api/v1/reputation/user/{user_id}", s.handleReputationGetUser)
 	s.mux.HandleFunc("GET /api/v1/reputation/leaderboard", s.handleReputationLeaderboard)
+
+	// M23
+	s.mux.HandleFunc("GET /api/discover/v1/campaigns/browse", s.handleDiscoverBrowse)
+	s.mux.HandleFunc("GET /api/discover/v1/campaigns/search", s.handleDiscoverSearch)
+	s.mux.HandleFunc("GET /api/discover/v1/campaigns/{campaign_id}", s.handleDiscoverCampaignDetails)
+	s.mux.HandleFunc("POST /api/discover/v1/campaigns/{campaign_id}/bookmark", s.handleDiscoverBookmark)
+
+	// M24
+	s.mux.HandleFunc("POST /api/clipping/v1/projects", s.handleClippingCreateProject)
+	s.mux.HandleFunc("GET /api/clipping/v1/projects/{project_id}", s.handleClippingGetProject)
+	s.mux.HandleFunc("PATCH /api/clipping/v1/projects/{project_id}/timeline", s.handleClippingUpdateTimeline)
+	s.mux.HandleFunc("POST /api/clipping/v1/projects/{project_id}/timeline/insert", s.handleClippingInsertTimeline)
+	s.mux.HandleFunc("GET /api/clipping/v1/projects/{project_id}/suggestions", s.handleClippingGetSuggestions)
+	s.mux.HandleFunc("POST /api/clipping/v1/projects/{project_id}/export", s.handleClippingRequestExport)
+	s.mux.HandleFunc("GET /api/clipping/v1/projects/{project_id}/export/{export_id}/status", s.handleClippingGetExportStatus)
+	s.mux.HandleFunc("POST /api/clipping/v1/projects/{project_id}/submit", s.handleClippingSubmit)
 
 	// M61
 	s.mux.HandleFunc("POST /api/v1/subscriptions", s.handleSubscriptionCreate)
