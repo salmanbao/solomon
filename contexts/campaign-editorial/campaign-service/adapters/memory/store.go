@@ -350,6 +350,9 @@ func (s *Store) ApplySubmissionCreated(
 			occurredAt.UTC(),
 			map[string]any{
 				"campaign_id":      campaign.CampaignID,
+				"brand_id":         campaign.BrandID,
+				"from_status":      string(from),
+				"to_status":        string(campaign.Status),
 				"reason":           "budget_exhausted",
 				"budget_remaining": campaign.BudgetRemaining,
 			},
@@ -437,7 +440,8 @@ func (s *Store) CompleteCampaignsPastDeadline(
 			map[string]any{
 				"campaign_id": campaign.CampaignID,
 				"brand_id":    campaign.BrandID,
-				"status":      string(campaign.Status),
+				"from_status": string(from),
+				"to_status":   string(campaign.Status),
 				"reason":      "deadline_reached",
 			},
 		); err == nil {
@@ -492,6 +496,7 @@ func campaignEnvelopeFromMap(
 		EventType:        eventType,
 		OccurredAt:       occurredAt.UTC(),
 		SourceService:    "campaign-service",
+		TraceID:          eventID,
 		SchemaVersion:    1,
 		PartitionKeyPath: "campaign_id",
 		PartitionKey:     campaignID,

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "solomon/contracts/events/v1/campaign.created.schema.json",
-  "title": "campaign.created",
+  "$id": "solomon/contracts/events/v1/campaign.resumed.schema.json",
+  "title": "campaign.resumed",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -21,7 +21,7 @@
       "minLength": 1
     },
     "event_type": {
-      "const": "campaign.created"
+      "const": "campaign.resumed"
     },
     "occurred_at": {
       "type": "string",
@@ -48,7 +48,13 @@
     "data": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["campaign_id", "brand_id", "status"],
+      "required": [
+        "campaign_id",
+        "brand_id",
+        "from_status",
+        "to_status",
+        "reason"
+      ],
       "properties": {
         "campaign_id": {
           "type": "string",
@@ -58,9 +64,16 @@
           "type": "string",
           "minLength": 1
         },
-        "status": {
+        "from_status": {
           "type": "string",
           "minLength": 1
+        },
+        "to_status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string"
         }
       }
     }
