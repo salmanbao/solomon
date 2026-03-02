@@ -1,10 +1,15 @@
-# Discover Service
+# M53-Discover-Service
 
-Module scaffold for Solomon monolith.
+Discover aggregation surface for monolith consumers.
 
-## Structure
-- domain/: entities, value objects, domain services, invariants
-- application/: use cases, command/query handlers, orchestration
-- ports/: repository, event, and client interfaces
-- adapters/: DB, HTTP/gRPC, event bus, cache implementations
-- transport/: module-private transport DTOs and event payload mappers
+## Canonical Dependency Alignment
+- DBR provider: `M23-Campaign-Discovery-Service`.
+- No direct writes to provider-owned tables.
+
+## API Surface (current)
+- `GET /api/v1/discover/feed`
+- `GET /api/v1/discover?tab=all|campaigns&cursor=...&limit=...`
+
+## Compatibility
+- `/api/v1/discover` remains backward-compatible for product-discovery callers
+  when M53 query parameters are not provided.

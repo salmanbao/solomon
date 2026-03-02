@@ -207,7 +207,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/v1/products/{id}/fulfill", s.handleProductFulfill)
 	s.mux.HandleFunc("POST /api/v1/admin/products/{product_id}/inventory", s.handleProductAdjustInventory)
 	s.mux.HandleFunc("PUT /api/v1/products/{product_id}/media/reorder", s.handleProductMediaReorder)
-	s.mux.HandleFunc("GET /api/v1/discover", s.handleProductDiscover)
+	s.mux.HandleFunc("GET /api/v1/discover", s.handleDiscoverRoot)
+	s.mux.HandleFunc("GET /api/v1/discover/feed", s.handleDiscoverFeed)
 	s.mux.HandleFunc("GET /api/v1/search", s.handleProductSearch)
 	s.mux.HandleFunc("GET /api/v1/users/{user_id}/data-export", s.handleProductUserDataExport)
 	s.mux.HandleFunc("POST /api/v1/users/{user_id}/delete-account", s.handleProductDeleteAccount)
@@ -288,6 +289,11 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/moderation/approve", s.handleModerationApprove)
 	s.mux.HandleFunc("POST /api/moderation/reject", s.handleModerationReject)
 	s.mux.HandleFunc("POST /api/moderation/flag", s.handleModerationFlag)
+
+	// M37
+	s.mux.HandleFunc("POST /api/v1/auth/login", s.handleAbuseLogin)
+	s.mux.HandleFunc("POST /api/v1/auth/challenge/{id}", s.handleAbuseChallenge)
+	s.mux.HandleFunc("GET /api/v1/admin/abuse-threats", s.handleAbuseAdminThreats)
 
 	// M61
 	s.mux.HandleFunc("POST /api/v1/subscriptions", s.handleSubscriptionCreate)

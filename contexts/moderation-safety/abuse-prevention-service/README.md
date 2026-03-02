@@ -1,10 +1,17 @@
-# Abuse Prevention Service
+# M37-Abuse-Prevention-Service
 
-Module scaffold for Solomon monolith.
+Monolith abuse-prevention surface routed from `internal/platform/httpserver`.
 
-## Structure
-- domain/: entities, value objects, domain services, invariants
-- application/: use cases, command/query handlers, orchestration
-- ports/: repository, event, and client interfaces
-- adapters/: DB, HTTP/gRPC, event bus, cache implementations
-- transport/: module-private transport DTOs and event payload mappers
+## Canonical Dependency Alignment
+- DBR provider: `M12-Fraud-Detection-Engine` via owner API projection.
+- No direct cross-service DB reads/writes.
+
+## API Surface (current)
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/challenge/{id}`
+- `GET /api/v1/admin/abuse-threats`
+
+## Contract Notes
+- Canonical error envelope is returned for all failures.
+- Challenge mutation enforces `Idempotency-Key`.
+- Admin threat endpoint requires bearer auth plus `X-Admin-Id`.
