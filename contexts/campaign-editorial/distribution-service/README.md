@@ -1,5 +1,7 @@
 # Distribution Service (M31)
 
+Configuration declaration: no runtime config; inherits platform defaults.
+
 ## Responsibility and Boundary
 `contexts/campaign-editorial/distribution-service` orchestrates the influencer distribution lifecycle for claimed clips:
 - ingest distribution claims from M09 (`distribution.claimed`)

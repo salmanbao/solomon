@@ -1,5 +1,7 @@
 # Campaign Service (M04)
 
+Configuration declaration: no runtime config; inherits platform defaults.
+
 ## Responsibility and Boundary
 `contexts/campaign-editorial/campaign-service` owns campaign lifecycle inside Solomon monolith:
 - campaign creation/update

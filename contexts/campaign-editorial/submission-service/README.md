@@ -1,5 +1,7 @@
 # Submission Service (M26)
 
+Configuration declaration: no runtime config; inherits platform defaults.
+
 ## Responsibility and Boundary
 `contexts/campaign-editorial/submission-service` owns submission intake and review workflow:
 - create submission

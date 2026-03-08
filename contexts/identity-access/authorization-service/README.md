@@ -1,5 +1,7 @@
 # Authorization Service (M21)
 
+Configuration declaration: no runtime config; inherits platform defaults.
+
 M21 implements monolith RBAC authorization in `contexts/identity-access/authorization-service`.
 
 ## Responsibility and Boundary

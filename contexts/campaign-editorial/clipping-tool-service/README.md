@@ -1,5 +1,7 @@
 # Clipping Tool Service (M24)
 
+Configuration declaration: no runtime config; inherits platform defaults.
+
 Monolith implementation for `M24-Clipping-Tool-Service`.
 
 ## Dependency Alignment

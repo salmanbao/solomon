@@ -1,5 +1,7 @@
 # M53-Discover-Service
 
+Configuration declaration: no runtime config; inherits platform defaults.
+
 Discover aggregation surface for monolith consumers.
 
 ## Canonical Dependency Alignment

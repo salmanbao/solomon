@@ -26,8 +26,8 @@
 ## Hierarchical Roadmap (Independent First, Then Dependents)
 
 ### Phase 0: Independent Foundations (No active inbound deps)
-- Start order priority inside phase: `M01`, `M09`, `M10`, `M11`, `M13`, `M60`, `M89`, then remaining independent modules.
-- Microservice track: `M01, M10, M11, M13, M17, M18, M19, M38, M45, M51, M52, M57, M66, M67, M68, M69, M70, M71, M72, M73, M77, M78, M79, M80, M83, M84, M89, M91, M97`.
+- Start order priority inside phase: `M01`, `M09`, `M10`, `M13`, `M60`, `M89`, then remaining independent modules.
+- Microservice track: `M01, M10, M13, M17, M18, M19, M38, M45, M51, M52, M57, M66, M67, M68, M69, M70, M71, M72, M73, M77, M78, M79, M80, M83, M84, M89, M91, M97`.
 - Monolith track: `M09, M20, M46, M49, M60, M62, M65, M74, M85, M88`.
 - Exit gate: owner APIs + event contracts published for all phase providers.
 
@@ -46,7 +46,7 @@
 - Exit gate: campaign-submission-voting-reward loop runs end-to-end with idempotent events.
 
 ### Phase 4: Second-Order Domain Buildout
-- Microservice track: `M12, M39`.
+- Microservice track: `M11, M12, M39`.
 - Monolith track: `M07, M23, M24, M31, M34, M35`.
 - Exit gate: moderation, finance, discovery, clipping, distribution surfaces available to downstream phases.
 

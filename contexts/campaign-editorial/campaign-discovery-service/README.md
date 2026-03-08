@@ -1,5 +1,7 @@
 # Campaign Discovery Service (M23)
 
+Configuration declaration: no runtime config; inherits platform defaults.
+
 Monolith implementation for `M23-Campaign-Discovery-Service` with canonical
 dependency and ownership alignment.
 

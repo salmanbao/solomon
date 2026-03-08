@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	campaignservice "solomon/contexts/campaign-editorial/campaign-service"
@@ -16,7 +17,8 @@ import (
 )
 
 func newTestServer() *Server {
-	return New(
+	_ = os.Setenv(adminRuntimeModeEnv, "test")
+	server, err := New(
 		contentlibrarymarketplace.NewInMemoryModule(nil, slog.Default()),
 		authorization.NewInMemoryModule(slog.Default()),
 		campaignservice.NewInMemoryModule(nil, slog.Default()),
@@ -26,6 +28,10 @@ func newTestServer() *Server {
 		slog.Default(),
 		":0",
 	)
+	if err != nil {
+		panic(err)
+	}
+	return server
 }
 
 func TestSubmissionCreateRequiresAuthorization(t *testing.T) {

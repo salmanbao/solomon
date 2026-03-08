@@ -1,5 +1,7 @@
 # Onboarding Service
 
+Configuration declaration: no runtime config; inherits platform defaults.
+
 Module scaffold for Solomon monolith.
 
 ## Structure

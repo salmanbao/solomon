@@ -3,7 +3,7 @@
   "info": {
     "title": "M20 Super Admin Dashboard API",
     "version": "v1",
-    "description": "Stable API contract for implemented M20 endpoints in Solomon."
+    "description": "Stable API contract for implemented M20 endpoints in Solomon. M20 owns operational routes under /api/admin/v1/impersonation/*, /api/admin/v1/users/*, /api/admin/v1/campaigns/*, /api/admin/v1/submissions/*, /api/admin/v1/feature-flags*, /api/admin/v1/analytics/*, and /api/admin/v1/audit-logs*; M86 owns control-plane slices outside this set."
   },
   "paths": {
     "/api/admin/v1/impersonation/start": {

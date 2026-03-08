@@ -1,9 +1,13 @@
 package httpserver
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
+
+	abuseerrors "solomon/contexts/moderation-safety/abuse-prevention-service/domain/errors"
+	abusehttp "solomon/contexts/moderation-safety/abuse-prevention-service/transport/http"
 )
 
 type abuseErrorEnvelope struct {
@@ -165,6 +169,61 @@ func (s *Server) handleAbuseAdminThreats(w http.ResponseWriter, r *http.Request)
 		},
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 	})
+}
+
+func writeAbuseDomainError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, abuseerrors.ErrInvalidRequest):
+		writeAbuseError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
+	case errors.Is(err, abuseerrors.ErrUnauthorized):
+		writeAbuseError(w, http.StatusUnauthorized, "UNAUTHORIZED", err.Error(), nil)
+	case errors.Is(err, abuseerrors.ErrForbidden):
+		writeAbuseError(w, http.StatusForbidden, "FORBIDDEN", err.Error(), nil)
+	case errors.Is(err, abuseerrors.ErrThreatNotFound):
+		writeAbuseError(w, http.StatusNotFound, "THREAT_NOT_FOUND", err.Error(), nil)
+	case errors.Is(err, abuseerrors.ErrIdempotencyKeyRequired):
+		writeAbuseError(w, http.StatusBadRequest, "IDEMPOTENCY_KEY_REQUIRED", err.Error(), nil)
+	case errors.Is(err, abuseerrors.ErrIdempotencyConflict):
+		writeAbuseError(w, http.StatusConflict, "IDEMPOTENCY_CONFLICT", err.Error(), nil)
+	default:
+		writeAbuseError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error", nil)
+	}
+}
+
+func (s *Server) handleAbuseAdminReleaseLockout(w http.ResponseWriter, r *http.Request) {
+	if !requireAbuseAuthorization(w, r) || !requireAbuseRequestID(w, r) || !requireAbuseAdminID(w, r) || !requireAbuseIdempotencyKey(w, r) {
+		return
+	}
+	adminID := strings.TrimSpace(r.Header.Get("X-Admin-Id"))
+	userID := strings.TrimSpace(r.PathValue("user_id"))
+	if userID == "" {
+		writeAbuseError(w, http.StatusBadRequest, "INVALID_REQUEST", "user_id is required", nil)
+		return
+	}
+	var req abusehttp.ReleaseLockoutRequest
+	if !s.decodeJSON(w, r, &req, func(w http.ResponseWriter, status int, code string, message string) {
+		writeAbuseError(w, status, strings.ToUpper(code), message, nil)
+	}) {
+		return
+	}
+	if strings.TrimSpace(req.SourceIP) == "" {
+		req.SourceIP = resolveClientIP(r)
+	}
+	if strings.TrimSpace(req.CorrelationID) == "" {
+		req.CorrelationID = getRequestID(r)
+	}
+	resp, err := s.abusePrevention.Handler.ReleaseLockoutHandler(
+		r.Context(),
+		adminID,
+		strings.TrimSpace(r.Header.Get("Idempotency-Key")),
+		userID,
+		req,
+	)
+	if err != nil {
+		writeAbuseDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func evaluateAbuseRisk(req abuseLoginRequest) abuseDecision {

@@ -44,10 +44,12 @@ import (
 	authzerrors "solomon/contexts/identity-access/authorization-service/domain/errors"
 	authzhttp "solomon/contexts/identity-access/authorization-service/transport/http"
 	onboardingservice "solomon/contexts/identity-access/onboarding-service"
+	admindashboardservice "solomon/contexts/internal-ops/admin-dashboard-service"
 	superadmindashboard "solomon/contexts/internal-ops/super-admin-dashboard"
 	superadmindomainerrors "solomon/contexts/internal-ops/super-admin-dashboard/domain/errors"
 	superadminhttp "solomon/contexts/internal-ops/super-admin-dashboard/transport/http"
 	teammanagementservice "solomon/contexts/internal-ops/team-management-service"
+	abusepreventionservice "solomon/contexts/moderation-safety/abuse-prevention-service"
 	moderationservice "solomon/contexts/moderation-safety/moderation-service"
 
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -70,6 +72,7 @@ type Server struct {
 	distribution        distributionservice.Module
 	voting              votingengine.Module
 	moderation          moderationservice.Module
+	abusePrevention     abusepreventionservice.Module
 	chat                chatservice.Module
 	reputation          reputationservice.Module
 	communityHealth     communityhealthservice.Module
@@ -77,8 +80,15 @@ type Server struct {
 	storefront          storefrontservice.Module
 	subscription        subscriptionservice.Module
 	onboarding          onboardingservice.Module
+	adminDashboard      admindashboardservice.Module
 	superAdmin          superadmindashboard.Module
 	teamManagement      teammanagementservice.Module
+}
+
+type ModuleOverrides struct {
+	Moderation      *moderationservice.Module
+	AbusePrevention *abusepreventionservice.Module
+	AdminDashboard  *admindashboardservice.Module
 }
 
 func New(
@@ -90,13 +100,65 @@ func New(
 	votingModule votingengine.Module,
 	logger *slog.Logger,
 	addr string,
-) *Server {
+) (*Server, error) {
+	return NewWithOverrides(
+		marketplace,
+		authorizationModule,
+		campaignModule,
+		submissionModule,
+		distributionModule,
+		votingModule,
+		logger,
+		addr,
+		ModuleOverrides{},
+	)
+}
+
+func NewWithOverrides(
+	marketplace contentlibrarymarketplace.Module,
+	authorizationModule authorization.Module,
+	campaignModule campaignservice.Module,
+	submissionModule submissionservice.Module,
+	distributionModule distributionservice.Module,
+	votingModule votingengine.Module,
+	logger *slog.Logger,
+	addr string,
+	overrides ModuleOverrides,
+) (*Server, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	if addr == "" {
 		addr = ":8080"
 	}
+
+	moderationModule := moderationservice.NewInMemoryModule(logger)
+	if overrides.Moderation != nil {
+		moderationModule = *overrides.Moderation
+	}
+
+	abusePreventionModule := abusepreventionservice.NewInMemoryModule()
+	if overrides.AbusePrevention != nil {
+		abusePreventionModule = *overrides.AbusePrevention
+	}
+
+	clippingToolModule := clippingtoolservice.NewInMemoryModule(logger)
+	editorDashboardModule := editordashboardservice.NewInMemoryModule(logger)
+
+	adminDashboardModule, err := newAdminDashboardModule(
+		authorizationModule,
+		moderationModule,
+		abusePreventionModule,
+		editorDashboardModule,
+		clippingToolModule,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if overrides.AdminDashboard != nil {
+		adminDashboardModule = *overrides.AdminDashboard
+	}
+
 	s := &Server{
 		mux:                 http.NewServeMux(),
 		logger:              logger,
@@ -105,13 +167,14 @@ func New(
 		authorization:       authorizationModule,
 		campaign:            campaignModule,
 		campaignDiscovery:   campaigndiscoveryservice.NewInMemoryModule(logger),
-		clippingTool:        clippingtoolservice.NewInMemoryModule(logger),
-		editorDashboard:     editordashboardservice.NewInMemoryModule(logger),
+		clippingTool:        clippingToolModule,
+		editorDashboard:     editorDashboardModule,
 		influencerDashboard: influencerdashboardservice.NewInMemoryModule(logger),
 		submission:          submissionModule,
 		distribution:        distributionModule,
 		voting:              votingModule,
-		moderation:          moderationservice.NewInMemoryModule(logger),
+		moderation:          moderationModule,
+		abusePrevention:     abusePreventionModule,
 		chat:                chatservice.NewInMemoryModule(logger),
 		reputation:          reputationservice.NewInMemoryModule(logger),
 		communityHealth:     communityhealthservice.NewInMemoryModule(logger),
@@ -119,6 +182,7 @@ func New(
 		storefront:          storefrontservice.NewInMemoryModule(logger),
 		subscription:        subscriptionservice.NewInMemoryModule(logger),
 		onboarding:          onboardingservice.NewInMemoryModule(logger),
+		adminDashboard:      adminDashboardModule,
 		superAdmin:          superadmindashboard.NewInMemoryModule(logger),
 		teamManagement:      teammanagementservice.NewInMemoryModule(logger),
 	}
@@ -127,7 +191,7 @@ func New(
 		Addr:    s.addr,
 		Handler: s.mux,
 	}
-	return s
+	return s, nil
 }
 
 func (s *Server) Start() error {
@@ -182,22 +246,62 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/authz/v1/delegations", s.handleAuthzCreateDelegation)
 
 	// M20
-	s.mux.HandleFunc("POST /api/admin/v1/impersonation/start", s.handleAdminStartImpersonation)
-	s.mux.HandleFunc("POST /api/admin/v1/impersonation/end", s.handleAdminEndImpersonation)
-	s.mux.HandleFunc("POST /api/admin/v1/users/{user_id}/wallet/adjust", s.handleAdminAdjustWallet)
-	s.mux.HandleFunc("GET /api/admin/v1/users/{user_id}/wallet/history", s.handleAdminWalletHistory)
-	s.mux.HandleFunc("POST /api/admin/v1/users/{user_id}/ban", s.handleAdminBanUser)
-	s.mux.HandleFunc("POST /api/admin/v1/users/{user_id}/unban", s.handleAdminUnbanUser)
-	s.mux.HandleFunc("GET /api/admin/v1/users/search", s.handleAdminSearchUsers)
-	s.mux.HandleFunc("POST /api/admin/v1/users/bulk-action", s.handleAdminBulkAction)
-	s.mux.HandleFunc("POST /api/admin/v1/campaigns/{campaign_id}/pause", s.handleAdminPauseCampaign)
-	s.mux.HandleFunc("PATCH /api/admin/v1/campaigns/{campaign_id}/adjust", s.handleAdminAdjustCampaign)
-	s.mux.HandleFunc("POST /api/admin/v1/submissions/{submission_id}/override", s.handleAdminOverrideSubmission)
-	s.mux.HandleFunc("GET /api/admin/v1/feature-flags", s.handleAdminFeatureFlags)
-	s.mux.HandleFunc("POST /api/admin/v1/feature-flags/{flag_key}/toggle", s.handleAdminToggleFeatureFlag)
-	s.mux.HandleFunc("GET /api/admin/v1/analytics/dashboard", s.handleAdminAnalyticsDashboard)
-	s.mux.HandleFunc("GET /api/admin/v1/audit-logs", s.handleAdminAuditLogs)
-	s.mux.HandleFunc("GET /api/admin/v1/audit-logs/export", s.handleAdminAuditLogsExport)
+	s.registerAdminOwnedRoute(adminRouteOwnerM20, "POST /api/admin/v1/impersonation/start", s.handleAdminStartImpersonation)
+	s.registerAdminOwnedRoute(adminRouteOwnerM20, "POST /api/admin/v1/impersonation/end", s.handleAdminEndImpersonation)
+	s.registerAdminOwnedRoute(adminRouteOwnerM20, "POST /api/admin/v1/users/{user_id}/wallet/adjust", s.handleAdminAdjustWallet)
+	s.registerAdminOwnedRoute(adminRouteOwnerM20, "GET /api/admin/v1/users/{user_id}/wallet/history", s.handleAdminWalletHistory)
+	s.registerAdminOwnedRoute(adminRouteOwnerM20, "POST /api/admin/v1/users/{user_id}/ban", s.handleAdminBanUser)
+	s.registerAdminOwnedRoute(adminRouteOwnerM20, "POST /api/admin/v1/users/{user_id}/unban", s.handleAdminUnbanUser)
+	s.registerAdminOwnedRoute(adminRouteOwnerM20, "GET /api/admin/v1/users/search", s.handleAdminSearchUsers)
+	s.registerAdminOwnedRoute(adminRouteOwnerM20, "POST /api/admin/v1/users/bulk-action", s.handleAdminBulkAction)
+	s.registerAdminOwnedRoute(adminRouteOwnerM20, "POST /api/admin/v1/campaigns/{campaign_id}/pause", s.handleAdminPauseCampaign)
+	s.registerAdminOwnedRoute(adminRouteOwnerM20, "PATCH /api/admin/v1/campaigns/{campaign_id}/adjust", s.handleAdminAdjustCampaign)
+	s.registerAdminOwnedRoute(adminRouteOwnerM20, "POST /api/admin/v1/submissions/{submission_id}/override", s.handleAdminOverrideSubmission)
+	s.registerAdminOwnedRoute(adminRouteOwnerM20, "GET /api/admin/v1/feature-flags", s.handleAdminFeatureFlags)
+	s.registerAdminOwnedRoute(adminRouteOwnerM20, "POST /api/admin/v1/feature-flags/{flag_key}/toggle", s.handleAdminToggleFeatureFlag)
+	s.registerAdminOwnedRoute(adminRouteOwnerM20, "GET /api/admin/v1/analytics/dashboard", s.handleAdminAnalyticsDashboard)
+	s.registerAdminOwnedRoute(adminRouteOwnerM20, "GET /api/admin/v1/audit-logs", s.handleAdminAuditLogs)
+	s.registerAdminOwnedRoute(adminRouteOwnerM20, "GET /api/admin/v1/audit-logs/export", s.handleAdminAuditLogsExport)
+
+	// M86
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/actions/log", s.handleAdminRecordAction)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/identity/roles/grant", s.handleAdminIdentityGrantRole)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/moderation/decisions", s.handleAdminModerationDecision)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/abuse-prevention/lockouts/{user_id}/release", s.handleAdminReleaseAbuseLockout)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/finance/refunds", s.handleAdminCreateFinanceRefund)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/finance/billing/invoices/{invoice_id}/refund", s.handleAdminCreateBillingRefund)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/finance/rewards/recalculate", s.handleAdminRecalculateReward)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/finance/affiliates/{affiliate_id}/suspend", s.handleAdminSuspendAffiliate)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/finance/affiliates/{affiliate_id}/attributions", s.handleAdminCreateAffiliateAttribution)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/finance/payouts/{payout_id}/retry", s.handleAdminRetryFailedPayout)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/compliance/disputes/{dispute_id}/resolve", s.handleAdminResolveDispute)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/compliance/disputes/{dispute_id}/reopen", s.handleAdminResolveDispute)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "GET /api/admin/v1/compliance/consent/{user_id}", s.handleAdminGetConsent)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/compliance/consent/{user_id}/update", s.handleAdminUpdateConsent)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/compliance/consent/{user_id}/withdraw", s.handleAdminWithdrawConsent)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/compliance/exports", s.handleAdminStartDataExport)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "GET /api/admin/v1/compliance/exports/{request_id}", s.handleAdminGetDataExport)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/compliance/deletion-requests", s.handleAdminRequestDeletion)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/compliance/retention/legal-holds", s.handleAdminCreateRetentionLegalHold)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "GET /api/admin/v1/compliance/legal-holds/check", s.handleAdminCheckLegalHold)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/compliance/legal-holds/{hold_id}/release", s.handleAdminReleaseLegalHold)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/compliance/legal/compliance-scans", s.handleAdminRunComplianceScan)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "GET /api/admin/v1/support/tickets/{ticket_id}", s.handleAdminGetSupportTicket)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "GET /api/admin/v1/support/tickets/search", s.handleAdminSearchSupportTickets)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/support/tickets/{ticket_id}/assign", s.handleAdminAssignSupportTicket)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "PATCH /api/admin/v1/support/tickets/{ticket_id}", s.handleAdminUpdateSupportTicket)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/creator-workflow/editor/campaigns/{campaign_id}/save", s.handleAdminCreatorWorkflowEditorSaveCampaign)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/creator-workflow/clipping/projects/{project_id}/export", s.handleAdminCreatorWorkflowClippingRequestExport)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/creator-workflow/auto-clipping/models/deploy", s.handleAdminCreatorWorkflowAutoClippingDeployModel)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/integrations/keys/rotate", s.handleAdminRotateIntegrationKey)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/integrations/workflows/test", s.handleAdminTestIntegrationWorkflow)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/integrations/webhooks/{webhook_id}/replay", s.handleAdminReplayWebhook)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/integrations/webhooks/{webhook_id}/disable", s.handleAdminDisableWebhook)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "GET /api/admin/v1/integrations/webhooks/{webhook_id}/deliveries", s.handleAdminGetWebhookDeliveries)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "GET /api/admin/v1/integrations/webhooks/{webhook_id}/analytics", s.handleAdminGetWebhookAnalytics)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/platform-ops/migrations/plans", s.handleAdminCreateMigrationPlan)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "GET /api/admin/v1/platform-ops/migrations/plans", s.handleAdminListMigrationPlans)
+	s.registerAdminOwnedRoute(adminRouteOwnerM86, "POST /api/admin/v1/platform-ops/migrations/runs", s.handleAdminStartMigrationRun)
 
 	// M60
 	s.mux.HandleFunc("GET /api/v1/products", s.handleProductList)
@@ -294,6 +398,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/v1/auth/login", s.handleAbuseLogin)
 	s.mux.HandleFunc("POST /api/v1/auth/challenge/{id}", s.handleAbuseChallenge)
 	s.mux.HandleFunc("GET /api/v1/admin/abuse-threats", s.handleAbuseAdminThreats)
+	s.mux.HandleFunc("POST /api/v1/admin/abuse-threats/{user_id}/lockout/release", s.handleAbuseAdminReleaseLockout)
 
 	// M61
 	s.mux.HandleFunc("POST /api/v1/subscriptions", s.handleSubscriptionCreate)

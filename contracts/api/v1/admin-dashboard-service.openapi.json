@@ -3,20 +3,50 @@
   "info": {
     "title": "M86 Admin Dashboard Service API",
     "version": "v1",
-    "description": "Stable API contract for implemented M86 admin action auditing endpoints in Solomon."
+    "description": "Stable API contract for implemented M86 control-plane endpoints in Solomon. M86 owns control-plane routes under /api/admin/v1/actions/*, /api/admin/v1/identity/*, /api/admin/v1/moderation/*, /api/admin/v1/abuse-prevention/*, /api/admin/v1/finance/*, and /api/admin/v1/compliance/*, /api/admin/v1/integrations/*, and /api/admin/v1/platform-ops/*."
   },
   "paths": {
     "/api/admin/v1/actions/log": {
       "post": {
-        "summary": "Record admin action audit log",
+        "summary": "Record control-plane admin action",
+        "operationId": "adminRecordAction",
         "parameters": [
           {
-            "$ref": "#/components/parameters/IdempotencyKey"
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordAdminActionRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordAdminActionResponse"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/Error"
@@ -24,7 +54,2565 @@
           "401": {
             "$ref": "#/components/responses/Error"
           },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/identity/roles/grant": {
+      "post": {
+        "summary": "Grant role through control-plane orchestration",
+        "operationId": "adminIdentityGrantRole",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantIdentityRoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantIdentityRoleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/moderation/decisions": {
+      "post": {
+        "summary": "Apply moderation decision through control-plane orchestration",
+        "operationId": "adminModerationDecision",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModerateSubmissionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerateSubmissionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/abuse-prevention/lockouts/{user_id}/release": {
+      "post": {
+        "summary": "Release an abuse lockout through control-plane orchestration",
+        "description": "Delegates owner execution to M37 and records control-plane audit evidence.",
+        "operationId": "adminReleaseAbuseLockout",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseAbuseLockoutRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseAbuseLockoutResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/finance/refunds": {
+      "post": {
+        "summary": "Create finance refund through control-plane orchestration",
+        "description": "Delegates owner execution to M39 and records control-plane audit evidence.",
+        "operationId": "adminCreateFinanceRefund",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFinanceRefundRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateFinanceRefundResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/finance/payouts/{payout_id}/retry": {
+      "post": {
+        "summary": "Retry failed payout through control-plane orchestration",
+        "description": "Delegates owner execution to M14 and records control-plane audit evidence.",
+        "operationId": "adminRetryFailedPayout",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          },
+          {
+            "name": "payout_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryFailedPayoutRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetryFailedPayoutResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/compliance/disputes/{dispute_id}/resolve": {
+      "post": {
+        "summary": "Resolve dispute through control-plane orchestration",
+        "description": "Delegates owner execution to M44 and records control-plane audit evidence.",
+        "operationId": "adminResolveDispute",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          },
+          {
+            "name": "dispute_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveDisputeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolveDisputeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/compliance/disputes/{dispute_id}/reopen": {
+      "post": {
+        "summary": "Reopen dispute through control-plane orchestration",
+        "description": "Delegates owner execution to M44 and records control-plane audit evidence.",
+        "operationId": "adminReopenDispute",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          },
+          {
+            "name": "dispute_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveDisputeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolveDisputeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/compliance/consent/{user_id}": {
+      "get": {
+        "summary": "Get consent state through control-plane orchestration",
+        "description": "Delegates owner query to M50 and records control-plane audit evidence.",
+        "operationId": "adminGetConsent",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetConsentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/compliance/consent/{user_id}/update": {
+      "post": {
+        "summary": "Update consent preferences through control-plane orchestration",
+        "description": "Delegates owner mutation to M50 and records control-plane audit evidence.",
+        "operationId": "adminUpdateConsent",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConsentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateConsentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/compliance/consent/{user_id}/withdraw": {
+      "post": {
+        "summary": "Withdraw consent through control-plane orchestration",
+        "description": "Delegates owner mutation to M50 and records control-plane audit evidence.",
+        "operationId": "adminWithdrawConsent",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawConsentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WithdrawConsentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/compliance/exports": {
+      "post": {
+        "summary": "Start data portability export through control-plane orchestration",
+        "description": "Delegates owner mutation to M51 and records control-plane audit evidence.",
+        "operationId": "adminStartDataExport",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartDataExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartDataExportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/compliance/exports/{request_id}": {
+      "get": {
+        "summary": "Get data portability export status through control-plane orchestration",
+        "description": "Delegates owner query to M51 and records control-plane audit evidence.",
+        "operationId": "adminGetDataExport",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetDataExportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/compliance/deletion-requests": {
+      "post": {
+        "summary": "Request data deletion through control-plane orchestration",
+        "description": "Delegates owner mutation to M50 and records control-plane audit evidence.",
+        "operationId": "adminRequestDeletion",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestDeletionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestDeletionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/compliance/retention/legal-holds": {
+      "post": {
+        "summary": "Create legal hold through retention control-plane orchestration",
+        "description": "Delegates owner mutation to M68 and records control-plane audit evidence.",
+        "operationId": "adminCreateRetentionLegalHold",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRetentionLegalHoldRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateRetentionLegalHoldResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/compliance/legal-holds/check": {
+      "get": {
+        "summary": "Check legal hold status through control-plane orchestration",
+        "description": "Delegates owner query to M69 and records control-plane audit evidence.",
+        "operationId": "adminCheckLegalHold",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "name": "entity_type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entity_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckLegalHoldResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/compliance/legal-holds/{hold_id}/release": {
+      "post": {
+        "summary": "Release legal hold through control-plane orchestration",
+        "description": "Delegates owner mutation to M69 and records control-plane audit evidence.",
+        "operationId": "adminReleaseLegalHold",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          },
+          {
+            "name": "hold_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseLegalHoldRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseLegalHoldResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/compliance/legal/compliance-scans": {
+      "post": {
+        "summary": "Run legal compliance action through control-plane orchestration",
+        "description": "Delegates owner mutation to M69 and records control-plane audit evidence.",
+        "operationId": "adminRunComplianceScan",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunComplianceScanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunComplianceScanResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/finance/billing/invoices/{invoice_id}/refund": {
+      "post": {
+        "summary": "Create billing refund through control-plane orchestration",
+        "description": "Delegates owner execution to M05 and records control-plane audit evidence.",
+        "operationId": "adminCreateBillingRefund",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          },
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBillingRefundRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateBillingRefundResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/finance/rewards/recalculate": {
+      "post": {
+        "summary": "Recalculate reward through control-plane orchestration",
+        "description": "Delegates owner execution to M41 and records control-plane audit evidence.",
+        "operationId": "adminRecalculateReward",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecalculateRewardRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecalculateRewardResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/finance/affiliates/{affiliate_id}/suspend": {
+      "post": {
+        "summary": "Suspend affiliate through control-plane orchestration",
+        "description": "Delegates owner execution to M89 and records control-plane audit evidence.",
+        "operationId": "adminSuspendAffiliate",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          },
+          {
+            "name": "affiliate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuspendAffiliateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuspendAffiliateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/finance/affiliates/{affiliate_id}/attributions": {
+      "post": {
+        "summary": "Create affiliate attribution through control-plane orchestration",
+        "description": "Delegates owner execution to M89 and records control-plane audit evidence.",
+        "operationId": "adminCreateAffiliateAttribution",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          },
+          {
+            "name": "affiliate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAffiliateAttributionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAffiliateAttributionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/support/tickets/{ticket_id}": {
+      "get": {
+        "tags": [
+          "Admin Dashboard Service"
+        ],
+        "summary": "Get support ticket by id",
+        "operationId": "getAdminSupportTicket",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/SupportTicketIDPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Support ticket details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportTicketResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Admin Dashboard Service"
+        ],
+        "summary": "Update support ticket status/priority",
+        "operationId": "updateAdminSupportTicket",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          },
+          {
+            "$ref": "#/components/parameters/SupportTicketIDPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSupportTicketRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated support ticket",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateSupportTicketResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/support/tickets/search": {
+      "get": {
+        "tags": [
+          "Admin Dashboard Service"
+        ],
+        "summary": "Search support tickets",
+        "operationId": "searchAdminSupportTickets",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "assigned_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Support ticket search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchSupportTicketsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/support/tickets/{ticket_id}/assign": {
+      "post": {
+        "tags": [
+          "Admin Dashboard Service"
+        ],
+        "summary": "Assign support ticket to agent",
+        "operationId": "assignAdminSupportTicket",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          },
+          {
+            "$ref": "#/components/parameters/SupportTicketIDPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignSupportTicketRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Assigned support ticket",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignSupportTicketResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/creator-workflow/editor/campaigns/{campaign_id}/save": {
+      "post": {
+        "summary": "Save campaign on behalf of editor through control-plane orchestration",
+        "operationId": "adminCreatorWorkflowEditorSaveCampaign",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          },
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveEditorCampaignRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveEditorCampaignResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/creator-workflow/clipping/projects/{project_id}/export": {
+      "post": {
+        "summary": "Request clipping export on behalf of creator through control-plane orchestration",
+        "operationId": "adminCreatorWorkflowClippingRequestExport",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          },
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestClippingExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestClippingExportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/creator-workflow/auto-clipping/models/deploy": {
+      "post": {
+        "summary": "Deploy auto-clipping model through control-plane orchestration",
+        "operationId": "adminCreatorWorkflowAutoClippingDeployModel",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeployAutoClippingModelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeployAutoClippingModelResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/integrations/keys/rotate": {
+      "post": {
+        "summary": "Rotate integration key through control-plane orchestration",
+        "operationId": "adminRotateIntegrationKey",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RotateIntegrationKeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RotateIntegrationKeyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/integrations/workflows/test": {
+      "post": {
+        "summary": "Test integration workflow through control-plane orchestration",
+        "operationId": "adminTestIntegrationWorkflow",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestIntegrationWorkflowRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestIntegrationWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/integrations/webhooks/{webhook_id}/replay": {
+      "post": {
+        "summary": "Replay webhook delivery through control-plane orchestration",
+        "operationId": "adminReplayWebhook",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          },
+          {
+            "name": "webhook_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplayWebhookRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayWebhookResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/integrations/webhooks/{webhook_id}/disable": {
+      "post": {
+        "summary": "Disable webhook endpoint through control-plane orchestration",
+        "operationId": "adminDisableWebhook",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          },
+          {
+            "name": "webhook_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisableWebhookRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisableWebhookResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/integrations/webhooks/{webhook_id}/deliveries": {
+      "get": {
+        "summary": "List webhook deliveries through control-plane orchestration",
+        "operationId": "adminGetWebhookDeliveries",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "name": "webhook_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetWebhookDeliveriesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/integrations/webhooks/{webhook_id}/analytics": {
+      "get": {
+        "summary": "Get webhook analytics through control-plane orchestration",
+        "operationId": "adminGetWebhookAnalytics",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "name": "webhook_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetWebhookAnalyticsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/platform-ops/migrations/plans": {
+      "post": {
+        "summary": "Create migration/backfill plan through control-plane orchestration",
+        "operationId": "adminCreateMigrationPlan",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMigrationPlanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateMigrationPlanResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "get": {
+        "summary": "List migration/backfill plans through control-plane orchestration",
+        "operationId": "adminListMigrationPlans",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListMigrationPlansResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/platform-ops/migrations/runs": {
+      "post": {
+        "summary": "Start migration/backfill run through control-plane orchestration",
+        "operationId": "adminStartMigrationRun",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/MFAHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AdminIDHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartMigrationRunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartMigrationRunResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
             "$ref": "#/components/responses/Error"
           }
         }
@@ -33,10 +2621,51 @@
   },
   "components": {
     "parameters": {
-      "IdempotencyKey": {
+      "AuthorizationHeader": {
+        "name": "Authorization",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "RequestIDHeader": {
+        "name": "X-Request-Id",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "MFAHeader": {
+        "name": "X-MFA-Code",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "AdminIDHeader": {
+        "name": "X-Admin-Id",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "IdempotencyKeyHeader": {
         "name": "Idempotency-Key",
         "in": "header",
         "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "SupportTicketIDPath": {
+        "name": "ticket_id",
+        "in": "path",
+        "required": true,
+        "description": "Support ticket identifier",
         "schema": {
           "type": "string"
         }
@@ -55,6 +2684,895 @@
       }
     },
     "schemas": {
+      "RecordAdminActionRequest": {
+        "type": "object",
+        "required": [
+          "action",
+          "justification"
+        ],
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "target_id": {
+            "type": "string"
+          },
+          "justification": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RecordAdminActionResponse": {
+        "type": "object",
+        "required": [
+          "audit_id",
+          "occurred_at"
+        ],
+        "properties": {
+          "audit_id": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "GrantIdentityRoleRequest": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "role_id",
+          "reason"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "role_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "GrantIdentityRoleResponse": {
+        "type": "object",
+        "required": [
+          "assignment_id",
+          "user_id",
+          "role_id",
+          "owner_audit_log_id",
+          "control_plane_audit_id",
+          "occurred_at"
+        ],
+        "properties": {
+          "assignment_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "role_id": {
+            "type": "string"
+          },
+          "owner_audit_log_id": {
+            "type": "string"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ModerateSubmissionRequest": {
+        "type": "object",
+        "required": [
+          "submission_id",
+          "campaign_id",
+          "action"
+        ],
+        "properties": {
+          "submission_id": {
+            "type": "string"
+          },
+          "campaign_id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "reject"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ModerateSubmissionResponse": {
+        "type": "object",
+        "required": [
+          "decision_id",
+          "submission_id",
+          "campaign_id",
+          "moderator_id",
+          "action",
+          "reason",
+          "queue_status",
+          "created_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "decision_id": {
+            "type": "string"
+          },
+          "submission_id": {
+            "type": "string"
+          },
+          "campaign_id": {
+            "type": "string"
+          },
+          "moderator_id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "queue_status": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ReleaseAbuseLockoutRequest": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ReleaseAbuseLockoutResponse": {
+        "type": "object",
+        "required": [
+          "threat_id",
+          "user_id",
+          "status",
+          "released_at",
+          "owner_audit_log_id",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "threat_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "released_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "owner_audit_log_id": {
+            "type": "string"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateFinanceRefundRequest": {
+        "type": "object",
+        "required": [
+          "transaction_id",
+          "user_id",
+          "amount",
+          "reason"
+        ],
+        "properties": {
+          "transaction_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateFinanceRefundResponse": {
+        "type": "object",
+        "required": [
+          "refund_id",
+          "transaction_id",
+          "user_id",
+          "amount",
+          "reason",
+          "created_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "refund_id": {
+            "type": "string"
+          },
+          "transaction_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RetryFailedPayoutRequest": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RetryFailedPayoutResponse": {
+        "type": "object",
+        "required": [
+          "payout_id",
+          "user_id",
+          "status",
+          "processed_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "payout_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "failure_reason": {
+            "type": "string"
+          },
+          "processed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ResolveDisputeRequest": {
+        "type": "object",
+        "required": [
+          "action",
+          "reason"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "resolve",
+              "reopen"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "refund_amount": {
+            "type": "number"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ResolveDisputeResponse": {
+        "type": "object",
+        "required": [
+          "dispute_id",
+          "status",
+          "processed_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "dispute_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "resolution_type": {
+            "type": "string"
+          },
+          "refund_amount": {
+            "type": "number"
+          },
+          "processed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "GetConsentResponse": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "status",
+          "preferences",
+          "last_updated",
+          "last_updated_by"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "preferences": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "last_updated": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_updated_by": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateConsentRequest": {
+        "type": "object",
+        "required": [
+          "preferences",
+          "reason"
+        ],
+        "properties": {
+          "preferences": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateConsentResponse": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "status",
+          "updated_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "WithdrawConsentRequest": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "WithdrawConsentResponse": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "status",
+          "updated_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "StartDataExportRequest": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "reason"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "StartDataExportResponse": {
+        "type": "object",
+        "required": [
+          "request_id",
+          "user_id",
+          "request_type",
+          "status",
+          "requested_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "request_type": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "download_url": {
+            "type": "string"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "GetDataExportResponse": {
+        "type": "object",
+        "required": [
+          "request_id",
+          "user_id",
+          "request_type",
+          "status",
+          "requested_at"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "request_type": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "download_url": {
+            "type": "string"
+          }
+        }
+      },
+      "RequestDeletionRequest": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "reason"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RequestDeletionResponse": {
+        "type": "object",
+        "required": [
+          "request_id",
+          "user_id",
+          "status",
+          "reason",
+          "requested_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateRetentionLegalHoldRequest": {
+        "type": "object",
+        "required": [
+          "entity_id",
+          "data_type",
+          "reason"
+        ],
+        "properties": {
+          "entity_id": {
+            "type": "string"
+          },
+          "data_type": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateRetentionLegalHoldResponse": {
+        "type": "object",
+        "required": [
+          "hold_id",
+          "entity_id",
+          "data_type",
+          "status",
+          "created_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "hold_id": {
+            "type": "string"
+          },
+          "entity_id": {
+            "type": "string"
+          },
+          "data_type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CheckLegalHoldResponse": {
+        "type": "object",
+        "required": [
+          "entity_type",
+          "entity_id",
+          "held",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "entity_type": {
+            "type": "string"
+          },
+          "entity_id": {
+            "type": "string"
+          },
+          "held": {
+            "type": "boolean"
+          },
+          "hold_id": {
+            "type": "string"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ReleaseLegalHoldRequest": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ReleaseLegalHoldResponse": {
+        "type": "object",
+        "required": [
+          "hold_id",
+          "entity_type",
+          "entity_id",
+          "status",
+          "created_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "hold_id": {
+            "type": "string"
+          },
+          "entity_type": {
+            "type": "string"
+          },
+          "entity_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "released_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RunComplianceScanRequest": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "report_type": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RunComplianceScanResponse": {
+        "type": "object",
+        "required": [
+          "report_id",
+          "report_type",
+          "status",
+          "findings_count",
+          "download_url",
+          "created_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "report_id": {
+            "type": "string"
+          },
+          "report_type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "findings_count": {
+            "type": "integer"
+          },
+          "download_url": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
       "ErrorResponse": {
         "type": "object",
         "required": [
@@ -66,6 +3584,1152 @@
             "type": "string"
           },
           "message": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateBillingRefundRequest": {
+        "type": "object",
+        "required": [
+          "line_item_id",
+          "amount",
+          "reason"
+        ],
+        "properties": {
+          "line_item_id": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateBillingRefundResponse": {
+        "type": "object",
+        "required": [
+          "refund_id",
+          "invoice_id",
+          "line_item_id",
+          "amount",
+          "reason",
+          "processed_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "refund_id": {
+            "type": "string"
+          },
+          "invoice_id": {
+            "type": "string"
+          },
+          "line_item_id": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "processed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RecalculateRewardRequest": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "submission_id",
+          "campaign_id",
+          "reason"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "submission_id": {
+            "type": "string"
+          },
+          "campaign_id": {
+            "type": "string"
+          },
+          "locked_views": {
+            "type": "integer"
+          },
+          "rate_per_1k": {
+            "type": "number"
+          },
+          "fraud_score": {
+            "type": "number"
+          },
+          "verification_completed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RecalculateRewardResponse": {
+        "type": "object",
+        "required": [
+          "submission_id",
+          "user_id",
+          "campaign_id",
+          "status",
+          "net_amount",
+          "rollover_total",
+          "calculated_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "submission_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "campaign_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "net_amount": {
+            "type": "number"
+          },
+          "rollover_total": {
+            "type": "number"
+          },
+          "calculated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "eligible_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "SuspendAffiliateRequest": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "SuspendAffiliateResponse": {
+        "type": "object",
+        "required": [
+          "affiliate_id",
+          "status",
+          "updated_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "affiliate_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateAffiliateAttributionRequest": {
+        "type": "object",
+        "required": [
+          "order_id",
+          "conversion_id",
+          "amount",
+          "reason"
+        ],
+        "properties": {
+          "click_id": {
+            "type": "string"
+          },
+          "order_id": {
+            "type": "string"
+          },
+          "conversion_id": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateAffiliateAttributionResponse": {
+        "type": "object",
+        "required": [
+          "attribution_id",
+          "affiliate_id",
+          "order_id",
+          "amount",
+          "attributed_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "attribution_id": {
+            "type": "string"
+          },
+          "affiliate_id": {
+            "type": "string"
+          },
+          "order_id": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "attributed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "SupportTicketResponse": {
+        "type": "object",
+        "required": [
+          "ticket_id",
+          "user_id",
+          "subject",
+          "description",
+          "category",
+          "priority",
+          "status",
+          "sub_status",
+          "sla_response_due_at",
+          "last_activity_at",
+          "updated_at"
+        ],
+        "properties": {
+          "ticket_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "sub_status": {
+            "type": "string"
+          },
+          "assigned_agent_id": {
+            "type": "string"
+          },
+          "sla_response_due_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_activity_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SearchSupportTicketsResponse": {
+        "type": "object",
+        "required": [
+          "tickets"
+        ],
+        "properties": {
+          "tickets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupportTicketResponse"
+            }
+          }
+        }
+      },
+      "AssignSupportTicketRequest": {
+        "type": "object",
+        "required": [
+          "agent_id",
+          "reason"
+        ],
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "AssignSupportTicketResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SupportTicketResponse"
+          },
+          {
+            "type": "object",
+            "required": [
+              "control_plane_audit_id"
+            ],
+            "properties": {
+              "control_plane_audit_id": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "UpdateSupportTicketRequest": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "sub_status": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateSupportTicketResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SupportTicketResponse"
+          },
+          {
+            "type": "object",
+            "required": [
+              "control_plane_audit_id"
+            ],
+            "properties": {
+              "control_plane_audit_id": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "SaveEditorCampaignRequest": {
+        "type": "object",
+        "required": [
+          "editor_id",
+          "reason"
+        ],
+        "properties": {
+          "editor_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "SaveEditorCampaignResponse": {
+        "type": "object",
+        "required": [
+          "campaign_id",
+          "saved",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "campaign_id": {
+            "type": "string"
+          },
+          "saved": {
+            "type": "boolean"
+          },
+          "saved_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RequestClippingExportRequest": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "format",
+          "resolution",
+          "fps",
+          "bitrate",
+          "reason"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "resolution": {
+            "type": "string"
+          },
+          "fps": {
+            "type": "integer"
+          },
+          "bitrate": {
+            "type": "string"
+          },
+          "campaign_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RequestClippingExportResponse": {
+        "type": "object",
+        "required": [
+          "export_id",
+          "project_id",
+          "status",
+          "progress_percent",
+          "created_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "export_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "progress_percent": {
+            "type": "integer"
+          },
+          "output_url": {
+            "type": "string"
+          },
+          "provider_job_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "DeployAutoClippingModelRequest": {
+        "type": "object",
+        "required": [
+          "model_name",
+          "version_tag",
+          "model_artifact_key",
+          "canary_percentage",
+          "reason"
+        ],
+        "properties": {
+          "model_name": {
+            "type": "string"
+          },
+          "version_tag": {
+            "type": "string"
+          },
+          "model_artifact_key": {
+            "type": "string"
+          },
+          "canary_percentage": {
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "DeployAutoClippingModelResponse": {
+        "type": "object",
+        "required": [
+          "model_version_id",
+          "deployment_status",
+          "deployed_at",
+          "message",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "model_version_id": {
+            "type": "string"
+          },
+          "deployment_status": {
+            "type": "string"
+          },
+          "deployed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "message": {
+            "type": "string"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RotateIntegrationKeyRequest": {
+        "type": "object",
+        "required": [
+          "key_id",
+          "reason"
+        ],
+        "properties": {
+          "key_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RotateIntegrationKeyResponse": {
+        "type": "object",
+        "required": [
+          "rotation_id",
+          "developer_id",
+          "old_key_id",
+          "new_key_id",
+          "created_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "rotation_id": {
+            "type": "string"
+          },
+          "developer_id": {
+            "type": "string"
+          },
+          "old_key_id": {
+            "type": "string"
+          },
+          "new_key_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "TestIntegrationWorkflowRequest": {
+        "type": "object",
+        "required": [
+          "workflow_id",
+          "reason"
+        ],
+        "properties": {
+          "workflow_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "TestIntegrationWorkflowResponse": {
+        "type": "object",
+        "required": [
+          "execution_id",
+          "workflow_id",
+          "status",
+          "test_run",
+          "started_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "execution_id": {
+            "type": "string"
+          },
+          "workflow_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "test_run": {
+            "type": "boolean"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ReplayWebhookRequest": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "webhook_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ReplayWebhookResponse": {
+        "type": "object",
+        "required": [
+          "delivery_id",
+          "webhook_id",
+          "status",
+          "http_status",
+          "latency_ms",
+          "timestamp",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "delivery_id": {
+            "type": "string"
+          },
+          "webhook_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "http_status": {
+            "type": "integer"
+          },
+          "latency_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "DisableWebhookRequest": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "webhook_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "DisableWebhookResponse": {
+        "type": "object",
+        "required": [
+          "webhook_id",
+          "status",
+          "updated_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "webhook_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
+            "type": "string"
+          }
+        }
+      },
+      "WebhookDeliveryResponse": {
+        "type": "object",
+        "required": [
+          "delivery_id",
+          "webhook_id",
+          "original_event_id",
+          "original_event_type",
+          "http_status",
+          "latency_ms",
+          "retry_count",
+          "delivered_at",
+          "is_test",
+          "success"
+        ],
+        "properties": {
+          "delivery_id": {
+            "type": "string"
+          },
+          "webhook_id": {
+            "type": "string"
+          },
+          "original_event_id": {
+            "type": "string"
+          },
+          "original_event_type": {
+            "type": "string"
+          },
+          "http_status": {
+            "type": "integer"
+          },
+          "latency_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "retry_count": {
+            "type": "integer"
+          },
+          "delivered_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "is_test": {
+            "type": "boolean"
+          },
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
+      "GetWebhookDeliveriesResponse": {
+        "type": "object",
+        "required": [
+          "deliveries"
+        ],
+        "properties": {
+          "deliveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookDeliveryResponse"
+            }
+          }
+        }
+      },
+      "WebhookAnalyticsMetrics": {
+        "type": "object",
+        "required": [
+          "total",
+          "success",
+          "failed",
+          "avg_latency"
+        ],
+        "properties": {
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "success": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "avg_latency": {
+            "type": "number"
+          }
+        }
+      },
+      "GetWebhookAnalyticsResponse": {
+        "type": "object",
+        "required": [
+          "total_deliveries",
+          "successful_deliveries",
+          "failed_deliveries",
+          "success_rate",
+          "avg_latency_ms",
+          "p95_latency_ms",
+          "p99_latency_ms",
+          "by_event_type"
+        ],
+        "properties": {
+          "total_deliveries": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "successful_deliveries": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "failed_deliveries": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "success_rate": {
+            "type": "number"
+          },
+          "avg_latency_ms": {
+            "type": "number"
+          },
+          "p95_latency_ms": {
+            "type": "number"
+          },
+          "p99_latency_ms": {
+            "type": "number"
+          },
+          "by_event_type": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WebhookAnalyticsMetrics"
+            }
+          }
+        }
+      },
+      "CreateMigrationPlanRequest": {
+        "type": "object",
+        "required": [
+          "service_name",
+          "environment",
+          "version",
+          "plan",
+          "reason"
+        ],
+        "properties": {
+          "service_name": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "object"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "risk_level": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "MigrationPlanResponse": {
+        "type": "object",
+        "required": [
+          "plan_id",
+          "service_name",
+          "environment",
+          "version",
+          "plan",
+          "status",
+          "dry_run",
+          "risk_level",
+          "staging_validated",
+          "backup_required",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "plan_id": {
+            "type": "string"
+          },
+          "service_name": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "object"
+          },
+          "status": {
+            "type": "string"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "risk_level": {
+            "type": "string"
+          },
+          "staging_validated": {
+            "type": "boolean"
+          },
+          "backup_required": {
+            "type": "boolean"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateMigrationPlanResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MigrationPlanResponse"
+          },
+          {
+            "type": "object",
+            "required": [
+              "control_plane_audit_id"
+            ],
+            "properties": {
+              "control_plane_audit_id": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "ListMigrationPlansResponse": {
+        "type": "object",
+        "required": [
+          "plans"
+        ],
+        "properties": {
+          "plans": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationPlanResponse"
+            }
+          }
+        }
+      },
+      "StartMigrationRunRequest": {
+        "type": "object",
+        "required": [
+          "plan_id",
+          "reason"
+        ],
+        "properties": {
+          "plan_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_ip": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "StartMigrationRunResponse": {
+        "type": "object",
+        "required": [
+          "run_id",
+          "plan_id",
+          "status",
+          "operator_id",
+          "snapshot_created",
+          "rollback_available",
+          "validation_status",
+          "backfill_job_id",
+          "started_at",
+          "completed_at",
+          "control_plane_audit_id"
+        ],
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "plan_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "operator_id": {
+            "type": "string"
+          },
+          "snapshot_created": {
+            "type": "boolean"
+          },
+          "rollback_available": {
+            "type": "boolean"
+          },
+          "validation_status": {
+            "type": "string"
+          },
+          "backfill_job_id": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "control_plane_audit_id": {
             "type": "string"
           }
         }

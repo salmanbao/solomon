@@ -29,6 +29,8 @@ import (
 	authmemory "solomon/contexts/identity-access/authorization-service/adapters/memory"
 	authpostgres "solomon/contexts/identity-access/authorization-service/adapters/postgres"
 	authworkers "solomon/contexts/identity-access/authorization-service/application/workers"
+	abusepreventionservice "solomon/contexts/moderation-safety/abuse-prevention-service"
+	abusepostgres "solomon/contexts/moderation-safety/abuse-prevention-service/adapters/postgres"
 	"solomon/internal/platform/config"
 	"solomon/internal/platform/db"
 	"solomon/internal/platform/httpserver"
@@ -111,6 +113,13 @@ func BuildAPI() (*APIApp, error) {
 		PermissionCacheTTL: 5 * time.Minute,
 		Logger:             logger,
 	})
+	abuseRepo := abusepostgres.NewRepository(pg.DB)
+	abuseModule := abusepreventionservice.NewModule(abusepreventionservice.Dependencies{
+		Repository:     abuseRepo,
+		Idempotency:    abuseRepo,
+		Clock:          abusepostgres.SystemClock{},
+		IdempotencyTTL: 7 * 24 * time.Hour,
+	})
 
 	campaignRepo := campaignpostgres.NewRepository(pg.DB, logger)
 	submissionRepo := submissionpostgres.NewRepository(pg.DB, logger)
@@ -154,7 +163,7 @@ func BuildAPI() (*APIApp, error) {
 		Logger:         logger,
 	})
 
-	server := httpserver.New(
+	server, err := httpserver.NewWithOverrides(
 		module,
 		authModule,
 		campaignModule,
@@ -163,7 +172,13 @@ func BuildAPI() (*APIApp, error) {
 		votingModule,
 		logger,
 		normalizeAddr(cfg.HTTPPort),
+		httpserver.ModuleOverrides{
+			AbusePrevention: &abuseModule,
+		},
 	)
+	if err != nil {
+		return nil, fmt.Errorf("build http server: %w", err)
+	}
 	return &APIApp{
 		server:   server,
 		postgres: pg,

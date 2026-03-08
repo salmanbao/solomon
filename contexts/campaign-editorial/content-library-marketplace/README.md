@@ -1,5 +1,7 @@
 # Content Library Marketplace (M09)
 
+Configuration declaration: no runtime config; inherits platform defaults.
+
 Developer documentation for
 `contexts/campaign-editorial/content-library-marketplace`.
 

@@ -1,5 +1,7 @@
 # Voting Engine (M08)
 
+Configuration declaration: no runtime config; inherits platform defaults.
+
 ## Responsibility and Context Boundary
 `contexts/campaign-editorial/voting-engine` implements MVP voting behavior for submissions:
 - vote create/update/retract with idempotency and one-vote-per-identity constraints
